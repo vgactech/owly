@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import type { ChatMessage } from "@/types/klerio";
+import type { ChatMessage } from "@/types/owly";
 
 interface ChatFeedProps {
   messages: ChatMessage[];
@@ -98,7 +98,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
 /** Animated "thinking" dots while assistant generates */
 function TypingIndicator() {
   return (
-    <li aria-live="polite" aria-label="Owly est en train d'écrire…">
+    <li aria-live="polite" aria-label="OWLY réfléchit…">
       <div
         style={{
           display: "inline-flex",
@@ -160,7 +160,7 @@ export function ChatFeed({ messages, loading = false }: ChatFeedProps) {
       >
         <span style={{ fontSize: 40 }}>🐧</span>
         <p style={{ margin: 0 }}>
-          Commencez une conversation avec Owly.
+          Lance une aventure avec OWLY.
           <br />
           Utilisez le curseur pour changer de mode.
         </p>

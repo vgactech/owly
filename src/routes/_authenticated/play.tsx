@@ -1,469 +1,359 @@
 /**
- * play.tsx — Sélecteur de classe Owly (page /play)
- * Cartes personnages hibou pixel art RPG avec effet 3D CSS.
- * Image source : public/owly-pixel-art.png — grille 4×2 (1536×1024px)
- * Chaque cellule : 384×512px
- * DEBUG MODE ACTIVE | CERTIFIED_100=false
+ * OWLY — Play Route (main game interface)
+ * Interface principale du jeu OWLY
+ * DEBUG MODE ACTIVE
  */
 
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useState, useCallback, useId } from "react";
+import { ChatFeed } from "@/components/chat/ChatFeed";
+import { ChatComposer, type ComposerSubmitPayload } from "@/components/chat/ChatComposer";
+import { OwlyMascot } from "@/components/owly/OwlyMascot";
+import { HeroSelector } from "@/components/owly/HeroSelector";
+import { PersonalityQuest } from "@/components/owly/PersonalityQuest";
+import { GroupLobby } from "@/components/owly/GroupLobby";
+import { outbox } from "@/lib/outbox";
+import type { ChatMessage, ChatMode, HeroClass, HeroAnimal, PersonalityTraits, Hero } from "@/types/owly";
 
-export const Route = createFileRoute("/_authenticated/play")({
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const Route = (createFileRoute as any)("/_authenticated/play")({
   head: () => ({
     meta: [
-      { title: "Choisis ta classe — Owly" },
-      { name: "description", content: "Choisis ton archétype de héros dans Owly." },
+      { title: "OWLY — Jouer" },
+      { name: "description", content: "Joue avec OWLY — ton aventure de découverte de personnalité." },
     ],
   }),
-  component: PlayPage,
+  component: PlayRoute,
 });
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface ClassDef {
-  id: string;
-  name: string;
-  kanji: string;
-  subtitle: string;
-  tags: string[];
-  /** bg-position en % : col 0..3 → 0/33.33/66.66/100 ; row 0..1 → 0/100 */
-  col: number;
-  row: number;
-  glowColor: string;
-  borderColor: string;
-  labelColor: string;
+function nanoid(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// ── Data ──────────────────────────────────────────────────────────────────────
+type GamePhase = "hero-select" | "personality-quest" | "group-lobby" | "playing";
 
-const CLASSES: ClassDef[] = [
-  {
-    id: "samurai",
-    name: "SAMURAI",
-    kanji: "侍",
-    subtitle: "HONNEUR",
-    tags: ["Force", "Discipline"],
-    col: 0, row: 0,
-    glowColor: "#ff4444",
-    borderColor: "#ff6644",
-    labelColor: "#ff8844",
-  },
-  {
-    id: "cyberpunk",
-    name: "CYBERPUNK",
-    kanji: "サイバーパンク",
-    subtitle: "TECH",
-    tags: ["Cyber", "Vitesse"],
-    col: 1, row: 0,
-    glowColor: "#00eeff",
-    borderColor: "#0088ff",
-    labelColor: "#00ccff",
-  },
-  {
-    id: "mage",
-    name: "MAGE",
-    kanji: "魔法使い",
-    subtitle: "ÉNERGIE",
-    tags: ["Magie", "Énergie"],
-    col: 2, row: 0,
-    glowColor: "#cc44ff",
-    borderColor: "#9933ff",
-    labelColor: "#dd77ff",
-  },
-  {
-    id: "archer",
-    name: "ARCHER",
-    kanji: "弓使い",
-    subtitle: "PRÉCISION",
-    tags: ["Précision", "Agilité"],
-    col: 3, row: 0,
-    glowColor: "#44ff88",
-    borderColor: "#228844",
-    labelColor: "#66ffaa",
-  },
-  {
-    id: "knight",
-    name: "CHEVALIER",
-    kanji: "騎士",
-    subtitle: "DÉFENSE",
-    tags: ["Lire", "Défense"],
-    col: 0, row: 1,
-    glowColor: "#4488ff",
-    borderColor: "#2244cc",
-    labelColor: "#66aaff",
-  },
-  {
-    id: "pirate",
-    name: "PIRATE",
-    kanji: "海賊",
-    subtitle: "ASSAUT",
-    tags: ["Lire", "Assaut"],
-    col: 1, row: 1,
-    glowColor: "#ff8844",
-    borderColor: "#cc4422",
-    labelColor: "#ffaa66",
-  },
-  {
-    id: "ninja",
-    name: "NINJA",
-    kanji: "忍者",
-    subtitle: "FURTIF",
-    tags: ["Rôle", "Furtif"],
-    col: 2, row: 1,
-    glowColor: "#9944ff",
-    borderColor: "#6622cc",
-    labelColor: "#bb77ff",
-  },
-  {
-    id: "tank",
-    name: "RÉSERVOIR",
-    kanji: "戦車",
-    subtitle: "RÉSISTANCE",
-    tags: ["Rôle", "Résistance"],
-    col: 3, row: 1,
-    glowColor: "#44ff44",
-    borderColor: "#228822",
-    labelColor: "#88ff88",
-  },
-];
+function PlayRoute() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { user } = (Route as any).useRouteContext() as {
+    user: { id: string; email?: string; name?: string };
+  };
 
-// ── Sprite helper ─────────────────────────────────────────────────────────────
+  const [phase, setPhase] = useState<GamePhase>("hero-select");
+  const [hero, setHero] = useState<Hero | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [mode, setMode] = useState<ChatMode>("quest");
+  const [loading, setLoading] = useState(false);
+  const [mascotTalking, setMascotTalking] = useState(false);
+  const sessionId = useId();
 
-/**
- * Retourne background-position en % pour une grille 4×2.
- * col 0..3 → 0 / 33.33 / 66.66 / 100
- * row 0..1 → 0 / 100
- */
-function spritePos(col: number, row: number): string {
-  const x = col === 0 ? 0 : col === 1 ? 33.33 : col === 2 ? 66.66 : 100;
-  const y = row === 0 ? 0 : 100;
-  return `${x}% ${y}%`;
-}
+  const handleHeroCreate = useCallback(
+    (heroClass: HeroClass, animal: HeroAnimal | null, customAnimal: string) => {
+      const newHero: Hero = {
+        id: nanoid(),
+        userId: user.id,
+        name: "Mon Héros",
+        heroClass,
+        animalId: animal?.id ?? "custom",
+        customAnimal: customAnimal || undefined,
+        personalityTraits: {
+          openness: 50,
+          conscientiousness: 50,
+          extraversion: 50,
+          agreeableness: 50,
+          neuroticism: 50,
+          intuition: 50,
+          thinking: 50,
+        },
+        level: 1,
+        xp: 0,
+        questionsAnswered: 0,
+        createdAt: new Date().toISOString(),
+      };
+      setHero(newHero);
+      setPhase("personality-quest");
+      console.debug("[DEBUG][play] Hero created:", newHero);
+    },
+    [user.id],
+  );
 
-// ── ClassCard ─────────────────────────────────────────────────────────────────
+  const handleQuestComplete = useCallback(
+    (traits: PersonalityTraits) => {
+      setHero((prev) =>
+        prev ? { ...prev, personalityTraits: traits, questionsAnswered: 8 } : prev,
+      );
+      setPhase("group-lobby");
+      console.debug("[DEBUG][play] Quest complete, traits:", traits);
+    },
+    [],
+  );
 
-function ClassCard({
-  cls,
-  selected,
-  onClick,
-}: {
-  cls: ClassDef;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const handleGroupJoin = useCallback(() => {
+    // Welcome message from OWLY agent
+    const welcomeMsg: ChatMessage = {
+      id: nanoid(),
+      role: "assistant",
+      content: hero
+        ? `⚔️ **Bienvenue dans le monde d'OWLY, ${hero.name} !**\n\nTon aventure commence maintenant. Je suis OWLY, ton maître de jeu et guide.\n\nQue souhaites-tu explorer ? Je peux :\n• 🗺️ **Lancer une quête** avec ton groupe\n• 🧠 **Révéler un aspect** de ta personnalité\n• 👥 **Analyser les héros** avec qui tu joues\n• ⚡ **Créer un scénario** sur mesure\n\nParle-moi, et l'aventure se tisse autour de toi…`
+        : "Bienvenue dans OWLY !",
+      createdAt: new Date().toISOString(),
+      mode: "quest",
+    };
+    setMessages([welcomeMsg]);
+    setPhase("playing");
+  }, [hero]);
 
-  function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const dx = ((e.clientX - cx) / (rect.width / 2)) * 14; // max ±14°
-    const dy = ((e.clientY - cy) / (rect.height / 2)) * -14;
-    setTilt({ x: dy, y: dx });
+  const handleSubmit = useCallback(
+    async (payload: ComposerSubmitPayload) => {
+      if (loading) return;
+
+      const userMsg: ChatMessage = {
+        id: nanoid(),
+        role: "user",
+        content:
+          payload.text ||
+          (payload.files.length > 0 ? `[${payload.files.length} fichier(s) joint(s)]` : ""),
+        createdAt: new Date().toISOString(),
+        mode: payload.mode,
+      };
+
+      outbox.enqueue(userMsg);
+      setMessages((prev) => [...prev, userMsg]);
+      setLoading(true);
+      setMascotTalking(true);
+
+      try {
+        const formData = new FormData();
+        formData.append("text", payload.text);
+        formData.append("mode", payload.mode);
+        formData.append("sessionId", sessionId);
+        formData.append("userId", user.id);
+        formData.append("userMessageId", userMsg.id);
+        formData.append("heroClass", hero?.heroClass ?? "MAGE");
+        formData.append("archetype", hero?.personalityTraits.archetype ?? "THE_ANALYST");
+        payload.files.forEach((f) => formData.append("files", f));
+
+        const res = await fetch("/api/messages", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          throw new Error(`Erreur serveur ${res.status}: ${await res.text()}`);
+        }
+
+        const data = (await res.json()) as { reply: string; audioUrl?: string };
+
+        const assistantMsg: ChatMessage = {
+          id: nanoid(),
+          role: "assistant",
+          content: data.reply,
+          createdAt: new Date().toISOString(),
+          mode: payload.mode,
+          ...(data.audioUrl !== undefined ? { audioUrl: data.audioUrl } : {}),
+        };
+
+        outbox.markSent(userMsg.id);
+        setMessages((prev) => [...prev, assistantMsg]);
+      } catch (err: unknown) {
+        const errorText = err instanceof Error ? err.message : "Erreur inconnue";
+        console.error("[DEBUG][play] handleSubmit error:", err);
+
+        const errMsg: ChatMessage = {
+          id: nanoid(),
+          role: "assistant",
+          content: `⚠️ ${errorText}. Ton message est conservé dans la file d'envoi.`,
+          createdAt: new Date().toISOString(),
+          mode: payload.mode,
+        };
+        setMessages((prev) => [...prev, errMsg]);
+        outbox.markFailed(userMsg.id);
+      } finally {
+        setLoading(false);
+        setMascotTalking(false);
+      }
+    },
+    [loading, sessionId, user.id, hero],
+  );
+
+  // ─── Phase screens ───────────────────────────────────────────────────────────
+
+  if (phase === "hero-select") {
+    return (
+      <PageWrapper title="CRÉER TON HÉROS" user={user}>
+        <HeroSelector onSelect={handleHeroCreate} />
+      </PageWrapper>
+    );
   }
 
-  function handleMouseLeave() {
-    setHovered(false);
-    setTilt({ x: 0, y: 0 });
+  if (phase === "personality-quest") {
+    return (
+      <PageWrapper title="QUÊTE DE PERSONNALITÉ" user={user}>
+        <PersonalityQuest
+          heroName={hero?.name ?? "Héros"}
+          onComplete={handleQuestComplete}
+        />
+      </PageWrapper>
+    );
   }
 
-  const bgPos = spritePos(cls.col, cls.row);
+  if (phase === "group-lobby") {
+    return (
+      <PageWrapper title="REJOINDRE UNE AVENTURE" user={user}>
+        <GroupLobby
+          hero={hero!}
+          onJoin={handleGroupJoin}
+        />
+      </PageWrapper>
+    );
+  }
 
+  // Playing phase
   return (
     <div
-      role="button"
-      tabIndex={0}
-      aria-pressed={selected}
-      aria-label={`Choisir la classe ${cls.name}`}
-      onClick={onClick}
-      onKeyDown={(e) => e.key === "Enter" && onClick()}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={handleMouseLeave}
-      onMouseMove={handleMouseMove}
+      aria-label="Interface OWLY"
       style={{
-        perspective: "600px",
-        cursor: "pointer",
-        outline: "none",
+        height: "100dvh",
+        display: "flex",
+        flexDirection: "column",
+        background: "#0a0a1a",
+        overflow: "hidden",
       }}
     >
-      <div
+      {/* Header */}
+      <header
         style={{
-          position: "relative",
-          width: "100%",
-          paddingBottom: "133%", // ratio 3:4 (384:512)
-          borderRadius: 16,
-          border: `2px solid ${selected ? cls.glowColor : hovered ? cls.borderColor : "#2a2a3a"}`,
-          background: "#0a0a14",
-          boxShadow: selected
-            ? `0 0 0 3px ${cls.glowColor}55, 0 0 40px ${cls.glowColor}66, inset 0 0 20px ${cls.glowColor}22`
-            : hovered
-            ? `0 0 20px ${cls.glowColor}44, 0 8px 32px #00000088`
-            : "0 4px 16px #00000066",
-          transform: hovered
-            ? `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale(1.04)`
-            : selected
-            ? "scale(1.03)"
-            : "scale(1)",
-          transition: hovered
-            ? "transform 0.08s linear, box-shadow 0.15s ease, border-color 0.15s ease"
-            : "transform 0.35s ease, box-shadow 0.3s ease, border-color 0.3s ease",
-          willChange: "transform",
-          overflow: "hidden",
+          padding: "10px 16px",
+          background: "rgba(10,10,26,0.95)",
+          borderBottom: "2px solid rgba(168,85,247,0.3)",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          flexShrink: 0,
         }}
       >
-        {/* Sprite personnage */}
-        <div
-          aria-hidden="true"
+        <a
+          href="/dashboard"
+          aria-label="Retour"
+          style={{ color: "#a855f7", textDecoration: "none", fontSize: 20 }}
+        >
+          ←
+        </a>
+        <span
           style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage: "url('/owly-pixel-art.png')",
-            backgroundSize: "400% 200%",
-            backgroundPosition: bgPos,
-            backgroundRepeat: "no-repeat",
-            imageRendering: "pixelated",
-          }}
-        />
-
-        {/* Reflet holographique au hover */}
-        {hovered && (
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: `linear-gradient(135deg, ${cls.glowColor}22 0%, transparent 50%, ${cls.glowColor}11 100%)`,
-              pointerEvents: "none",
-            }}
-          />
-        )}
-
-        {/* Sélectionné : brillance */}
-        {selected && (
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: `radial-gradient(ellipse at 50% 20%, ${cls.glowColor}33 0%, transparent 70%)`,
-              animation: "owly-pulse 2s ease-in-out infinite",
-              pointerEvents: "none",
-            }}
-          />
-        )}
-
-        {/* Label bas de carte */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            padding: "8px 10px 10px",
-            background: "linear-gradient(to top, #000000ee 0%, #00000088 70%, transparent 100%)",
-            textAlign: "center",
+            color: "#a855f7",
+            fontWeight: 800,
+            fontSize: 18,
+            fontFamily: "monospace",
+            textShadow: "0 0 8px #a855f7",
           }}
         >
-          <div
+          🦉 OWLY
+        </span>
+        {hero && (
+          <span
             style={{
-              display: "inline-block",
-              padding: "3px 10px",
-              border: `1px solid ${cls.labelColor}`,
+              fontSize: 12,
+              color: "#8b8bb8",
+              background: "rgba(168,85,247,0.1)",
+              padding: "2px 10px",
               borderRadius: 6,
-              background: "#00000099",
-              backdropFilter: "blur(2px)",
+              fontFamily: "monospace",
+              border: "1px solid rgba(168,85,247,0.3)",
             }}
           >
-            <div
-              style={{
-                fontFamily: "'Courier New', monospace",
-                fontWeight: 700,
-                fontSize: 13,
-                letterSpacing: 2,
-                color: cls.labelColor,
-                lineHeight: 1.2,
-              }}
-            >
-              {cls.name}
-            </div>
-            <div
-              style={{
-                fontSize: 10,
-                color: "#aaaacc",
-                letterSpacing: 1,
-              }}
-            >
-              {cls.kanji}
-            </div>
-          </div>
-        </div>
-      </div>
+            ⚔️ {hero.heroClass} · {hero.personalityTraits.archetype?.replace("THE_", "") ?? ""}
+          </span>
+        )}
+        {mode !== "quest" && (
+          <span
+            style={{
+              fontSize: 12,
+              color: "#00f5ff",
+              background: "rgba(0,245,255,0.08)",
+              padding: "2px 8px",
+              borderRadius: 6,
+              fontFamily: "monospace",
+            }}
+          >
+            {mode === "voice" ? "🎙️ Vocal" : "👥 Groupe"}
+          </span>
+        )}
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 11, color: "#6060a8", fontFamily: "monospace" }}>
+          {user.email ?? user.name ?? ""}
+        </span>
+      </header>
 
-      {/* Sous-titre et tags sous la carte */}
-      <div style={{ textAlign: "center", marginTop: 8 }}>
-        <div
-          style={{
-            fontSize: 11,
-            letterSpacing: 1,
-            color: selected ? cls.labelColor : "#7777aa",
-            fontFamily: "'Courier New', monospace",
-          }}
-        >
-          {cls.tags.join(" · ")}
-        </div>
-      </div>
+      {/* Feed */}
+      <ChatFeed messages={messages} loading={loading} />
+
+      {/* Composer */}
+      <ChatComposer
+        mode={mode}
+        onModeChange={setMode}
+        onSubmit={handleSubmit}
+        disabled={loading}
+      />
+
+      {/* OWLY Mascot */}
+      <OwlyMascot
+        talking={mascotTalking}
+        pose={loading ? "thinking" : "idle"}
+      />
     </div>
   );
 }
 
-// ── Page principale ───────────────────────────────────────────────────────────
+// ─── Wrapper pour les phases d'onboarding ────────────────────────────────────
 
-function PlayPage() {
-  const navigate = useNavigate();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [heroName, setHeroName] = useState("");
+interface PageWrapperProps {
+  title: string;
+  user: { email?: string; name?: string };
+  children: React.ReactNode;
+}
 
-  const selectedClass = CLASSES.find((c) => c.id === selectedId) ?? null;
-
-  function handleStart() {
-    if (!selectedId) return;
-    // Navigation vers le chat avec la classe choisie
-    navigate({ to: "/chat" as "/" });
-  }
-
+function PageWrapper({ title, user, children }: PageWrapperProps) {
   return (
-    <main
+    <div
       style={{
-        minHeight: "100vh",
-        background: "radial-gradient(ellipse at 50% 0%, #1a0a2e 0%, #0a0a14 60%)",
-        color: "#e0e0ff",
-        fontFamily: "system-ui, sans-serif",
-        padding: "40px 20px 60px",
+        minHeight: "100dvh",
+        background: "#0a0a1a",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      {/* Titre */}
-      <div style={{ textAlign: "center", marginBottom: 36 }}>
-        <div
-          style={{
-            display: "inline-block",
-            padding: "4px 16px",
-            border: "1px solid #4444aa",
-            borderRadius: 4,
-            fontSize: 11,
-            letterSpacing: 3,
-            color: "#8888cc",
-            marginBottom: 12,
-            fontFamily: "'Courier New', monospace",
-          }}
-        >
-          ✦ CHOISIS TA CLASSE ✦
-        </div>
-        <p style={{ color: "#6666aa", fontSize: 14, margin: 0 }}>
-          Ton archétype définit ton style de jeu et tes affinités cognitives.
-        </p>
-      </div>
-
-      {/* Champ nom du héros */}
-      <div style={{ maxWidth: 480, margin: "0 auto 32px" }}>
-        <label
-          style={{
-            display: "block",
-            fontSize: 11,
-            letterSpacing: 2,
-            color: "#8888cc",
-            marginBottom: 8,
-            fontFamily: "'Courier New', monospace",
-          }}
-        >
-          NOM DU HÉROS
-        </label>
-        <input
-          type="text"
-          placeholder="Comment s'appelle ton héros ?"
-          value={heroName}
-          onChange={(e) => setHeroName(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "12px 16px",
-            background: "#0f0f1f",
-            border: `1px solid ${selectedClass ? selectedClass.borderColor : "#3333aa"}`,
-            borderRadius: 8,
-            color: "#e0e0ff",
-            fontSize: 15,
-            outline: "none",
-            boxSizing: "border-box",
-            transition: "border-color 0.3s",
-          }}
-        />
-      </div>
-
-      {/* Grille des classes */}
-      <div
+      <header
         style={{
-          maxWidth: 900,
-          margin: "0 auto 40px",
+          padding: "12px 16px",
+          background: "rgba(10,10,26,0.95)",
+          borderBottom: "2px solid rgba(168,85,247,0.3)",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
         }}
       >
-        <div
+        <span
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            gap: 16,
+            color: "#a855f7",
+            fontWeight: 800,
+            fontSize: 18,
+            fontFamily: "monospace",
+            textShadow: "0 0 8px #a855f7",
           }}
         >
-          {CLASSES.map((cls) => (
-            <ClassCard
-              key={cls.id}
-              cls={cls}
-              selected={selectedId === cls.id}
-              onClick={() => setSelectedId(cls.id)}
-            />
-          ))}
-        </div>
+          🦉 OWLY
+        </span>
+        <span style={{ fontSize: 12, color: "#00f5ff", fontFamily: "monospace", letterSpacing: 1 }}>
+          — {title}
+        </span>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 11, color: "#6060a8", fontFamily: "monospace" }}>
+          {user.email ?? user.name ?? ""}
+        </span>
+      </header>
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        {children}
       </div>
-
-      {/* Bouton commencer */}
-      <div style={{ textAlign: "center" }}>
-        <button
-          onClick={handleStart}
-          disabled={!selectedId}
-          style={{
-            padding: "14px 48px",
-            background: selectedClass
-              ? `linear-gradient(135deg, ${selectedClass.glowColor}44, ${selectedClass.glowColor}22)`
-              : "#1a1a2e",
-            border: `1px solid ${selectedClass ? selectedClass.glowColor : "#3333aa"}`,
-            borderRadius: 8,
-            color: selectedClass ? selectedClass.labelColor : "#4444aa",
-            fontSize: 14,
-            letterSpacing: 2,
-            fontFamily: "'Courier New', monospace",
-            cursor: selectedId ? "pointer" : "not-allowed",
-            transition: "all 0.3s ease",
-            opacity: selectedId ? 1 : 0.5,
-          }}
-        >
-          ✦ COMMENCER LA QUÊTE
-        </button>
-      </div>
-
-      {/* Styles globaux */}
-      <style>{`
-        @keyframes owly-pulse {
-          0%, 100% { opacity: 0.6; }
-          50% { opacity: 1; }
-        }
-        input::placeholder {
-          color: #4444aa;
-        }
-        [role="button"]:focus-visible {
-          outline: 2px solid #8888ff;
-          outline-offset: 4px;
-          border-radius: 16px;
-        }
-      `}</style>
-    </main>
+    </div>
   );
 }

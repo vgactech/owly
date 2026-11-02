@@ -1,5 +1,5 @@
 /**
- * Mascot — floating companion hibou (Owly).
+ * Mascot — floating companion head (OWLY).
  * Draggable orb with animated levitation and talking state.
  * Based on prototype V6 from KLERIO_BRONZE_BULLE_LIBRE.html
  * DEBUG MODE ACTIVE
@@ -18,17 +18,14 @@ interface MascotProps {
   className?: string;
 }
 
-// Sprite-sheet positions — owly-pixel-art.png (grille 4×2)
-// Ligne 0: SAMURAI | CYBERPUNK | MAGE | ARCHER
-// Ligne 1: KNIGHT  | PIRATE    | NINJA| TANK
-// background-position: col*33.33% row*100%
+// Sprite-sheet positions for each pose (background-position: x% y%)
 const POSE_POSITIONS: Record<MascotPose, string> = {
-  classic:  "0% 0%",      // SAMURAI (neutre)
-  joy:      "33.33% 0%",  // CYBERPUNK (cool/tech)
-  curious:  "66.66% 0%",  // MAGE (réfléchi)
-  cool:     "100% 0%",    // ARCHER (précis)
-  sleep:    "33.33% 100%",// PIRATE (détendu)
-  comfort:  "66.66% 100%",// NINJA (furtif)
+  classic: "7% 0%",
+  joy: "50% 0%",
+  curious: "100% 0%",
+  cool: "0% 100%",
+  sleep: "50% 100%",
+  comfort: "100% 100%",
 };
 
 /**
@@ -38,7 +35,7 @@ const POSE_POSITIONS: Record<MascotPose, string> = {
 export function Mascot({
   talking = false,
   pose = "classic",
-  statusLabel = "Owly — compagnon hibou",
+  statusLabel = "Maître de quête OWLY",
   className = "",
 }: MascotProps) {
   const orbRef = useRef<HTMLButtonElement>(null);
@@ -101,11 +98,11 @@ export function Mascot({
   return (
     <div
       style={{ position: "fixed", top: pos.y, left: pos.x, zIndex: 40, width: 96 }}
-      aria-label="Owly — compagnon hibou"
+      aria-label="Maître de quête OWLY"
     >
       <button
         ref={orbRef}
-        aria-label="Mascotte déplaçable. Glissez pour la positionner. Flèches pour déplacer au clavier."
+        aria-label="Mascotte OWLY déplaçable. Glissez pour la positionner. Flèches pour déplacer au clavier."
         aria-pressed={talking}
         className={[
           "mascot-orb",
@@ -146,7 +143,7 @@ export function Mascot({
             inset: 4,
             borderRadius: "50%",
             backgroundImage: "var(--mascot-sheet)",
-            backgroundSize: "400% 200%",
+            backgroundSize: "430% 285%",
             backgroundPosition,
             backgroundRepeat: "no-repeat",
             overflow: "hidden",
@@ -227,14 +224,14 @@ export function MascotAvatar({
   return (
     <span
       role="img"
-      aria-label="Owly — hibou mascotte"
+      aria-label="Mascotte OWLY"
       style={{
         display: "inline-block",
         width: size,
         height: size,
         borderRadius: "50%",
         backgroundImage: "var(--mascot-sheet)",
-        backgroundSize: "400% 200%",
+        backgroundSize: "430% 285%",
         backgroundPosition,
         backgroundRepeat: "no-repeat",
         flexShrink: 0,
@@ -244,10 +241,10 @@ export function MascotAvatar({
 }
 
 // Add mascot sprite-sheet CSS variable to :root if not already set
-// owly-pixel-art.png = image hibou pixel art RPG (8 personnages)
+// The webp sprite is loaded from the public folder (copied from root)
 if (typeof document !== "undefined") {
   const root = document.documentElement;
   if (!root.style.getPropertyValue("--mascot-sheet")) {
-    root.style.setProperty("--mascot-sheet", 'url("/owly-pixel-art.png")');
+    root.style.setProperty("--mascot-sheet", 'url("/mascot-sheet.webp")');
   }
 }
