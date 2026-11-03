@@ -98,7 +98,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
 /** Animated "thinking" dots while assistant generates */
 function TypingIndicator() {
   return (
-    <li aria-live="polite" aria-label="Klerio est en train d'écrire…">
+    <li aria-live="polite" aria-label="Owly est en train d'écrire…">
       <div
         style={{
           display: "inline-flex",
@@ -117,13 +117,13 @@ function TypingIndicator() {
               borderRadius: "50%",
               background: "#cd7f32",
               display: "inline-block",
-              animation: `klerio-bounce 1.2s ${i * 0.2}s ease-in-out infinite`,
+              animation: `owly-bounce 1.2s ${i * 0.2}s ease-in-out infinite`,
             }}
           />
         ))}
       </div>
       <style>{`
-        @keyframes klerio-bounce {
+        @keyframes owly-bounce {
           0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
           40%            { transform: translateY(-6px); opacity: 1; }
         }
@@ -158,9 +158,9 @@ export function ChatFeed({ messages, loading = false }: ChatFeedProps) {
           textAlign: "center",
         }}
       >
-        <span style={{ fontSize: 40 }}>🐧</span>
+        <span style={{ fontSize: 40 }}>🦉</span>
         <p style={{ margin: 0 }}>
-          Commencez une conversation avec Klerio.
+          Commencez une conversation avec Owly.
           <br />
           Utilisez le curseur pour changer de mode.
         </p>

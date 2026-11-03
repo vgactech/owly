@@ -1,5 +1,5 @@
 /**
- * Mascot — floating companion head (Klerio).
+ * Mascot — floating companion hibou (Owly).
  * Draggable orb with animated levitation and talking state.
  * Based on prototype V6 from KLERIO_BRONZE_BULLE_LIBRE.html
  * DEBUG MODE ACTIVE
@@ -18,14 +18,17 @@ interface MascotProps {
   className?: string;
 }
 
-// Sprite-sheet positions for each pose (background-position: x% y%)
+// Sprite-sheet positions — owly-pixel-art.png (grille 4×2)
+// Ligne 0: SAMURAI | CYBERPUNK | MAGE | ARCHER
+// Ligne 1: KNIGHT  | PIRATE    | NINJA| TANK
+// background-position: col*33.33% row*100%
 const POSE_POSITIONS: Record<MascotPose, string> = {
-  classic: "7% 0%",
-  joy: "50% 0%",
-  curious: "100% 0%",
-  cool: "0% 100%",
-  sleep: "50% 100%",
-  comfort: "100% 100%",
+  classic:  "0% 0%",      // SAMURAI (neutre)
+  joy:      "33.33% 0%",  // CYBERPUNK (cool/tech)
+  curious:  "66.66% 0%",  // MAGE (réfléchi)
+  cool:     "100% 0%",    // ARCHER (précis)
+  sleep:    "33.33% 100%",// PIRATE (détendu)
+  comfort:  "66.66% 100%",// NINJA (furtif)
 };
 
 /**
@@ -35,7 +38,7 @@ const POSE_POSITIONS: Record<MascotPose, string> = {
 export function Mascot({
   talking = false,
   pose = "classic",
-  statusLabel = "Compagnon Klerio",
+  statusLabel = "Owly — compagnon hibou",
   className = "",
 }: MascotProps) {
   const orbRef = useRef<HTMLButtonElement>(null);
@@ -98,7 +101,7 @@ export function Mascot({
   return (
     <div
       style={{ position: "fixed", top: pos.y, left: pos.x, zIndex: 40, width: 96 }}
-      aria-label="Compagnon Klerio"
+      aria-label="Owly — compagnon hibou"
     >
       <button
         ref={orbRef}
@@ -127,7 +130,7 @@ export function Mascot({
           touchAction: "none",
           overflow: "visible",
           padding: 0,
-          animation: dragging ? "none" : "klerio-levitate 4s ease-in-out infinite",
+          animation: dragging ? "none" : "owly-levitate 4s ease-in-out infinite",
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -143,7 +146,7 @@ export function Mascot({
             inset: 4,
             borderRadius: "50%",
             backgroundImage: "var(--mascot-sheet)",
-            backgroundSize: "430% 285%",
+            backgroundSize: "400% 200%",
             backgroundPosition,
             backgroundRepeat: "no-repeat",
             overflow: "hidden",
@@ -166,7 +169,7 @@ export function Mascot({
             opacity: talking ? 1 : 0,
             transformOrigin: "center",
             pointerEvents: "none",
-            animation: talking ? "klerio-talk 0.38s ease-in-out infinite alternate" : "none",
+            animation: talking ? "owly-talk 0.38s ease-in-out infinite alternate" : "none",
           }}
         />
       </button>
@@ -191,11 +194,11 @@ export function Mascot({
 
       {/* Global keyframe styles injected once */}
       <style>{`
-        @keyframes klerio-levitate {
+        @keyframes owly-levitate {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-5px); }
         }
-        @keyframes klerio-talk {
+        @keyframes owly-talk {
           0% { transform: translate(-50%, -50%) scaleY(0.2); }
           45% { transform: translate(-50%, -50%) scaleY(1); }
           100% { transform: translate(-50%, -50%) scaleY(0.45); }
@@ -224,14 +227,14 @@ export function MascotAvatar({
   return (
     <span
       role="img"
-      aria-label="Mascotte Klerio"
+      aria-label="Owly — hibou mascotte"
       style={{
         display: "inline-block",
         width: size,
         height: size,
         borderRadius: "50%",
         backgroundImage: "var(--mascot-sheet)",
-        backgroundSize: "430% 285%",
+        backgroundSize: "400% 200%",
         backgroundPosition,
         backgroundRepeat: "no-repeat",
         flexShrink: 0,
@@ -241,10 +244,10 @@ export function MascotAvatar({
 }
 
 // Add mascot sprite-sheet CSS variable to :root if not already set
-// The webp sprite is loaded from the public folder (copied from root)
+// owly-pixel-art.png = image hibou pixel art RPG (8 personnages)
 if (typeof document !== "undefined") {
   const root = document.documentElement;
   if (!root.style.getPropertyValue("--mascot-sheet")) {
-    root.style.setProperty("--mascot-sheet", 'url("/mascot-sheet.webp")');
+    root.style.setProperty("--mascot-sheet", 'url("/owly-pixel-art.png")');
   }
 }
