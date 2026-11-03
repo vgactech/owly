@@ -18,8 +18,8 @@ import type { ChatMessage, ChatMode } from "@/types/klerio";
 export const Route = (createFileRoute as any)("/_authenticated/chat")({
   head: () => ({
     meta: [
-      { title: "Chat — Owly" },
-      { name: "description", content: "Votre assistant personnel Owly." },
+      { title: "Chat — Klerio" },
+      { name: "description", content: "Votre assistant personnel Klerio." },
     ],
   }),
   component: ChatRoute,
@@ -122,7 +122,7 @@ function ChatRoute() {
 
   return (
     <div
-      aria-label="Interface de chat Owly"
+      aria-label="Interface de chat Klerio"
       style={{
         height: "100dvh",
         display: "flex",
@@ -150,7 +150,7 @@ function ChatRoute() {
         >
           ←
         </a>
-        <span style={{ color: "#fff3df", fontWeight: 600, fontSize: 17 }}>🦉 Owly</span>
+        <span style={{ color: "#fff3df", fontWeight: 600, fontSize: 17 }}>Klerio</span>
         {mode !== "chat" && (
           <span
             style={{
@@ -180,7 +180,7 @@ function ChatRoute() {
       <Mascot
         talking={mascotTalking}
         pose={loading ? "curious" : "classic"}
-        statusLabel={loading ? "Owly réfléchit…" : "Owly est prêt"}
+        statusLabel={loading ? "Klerio réfléchit…" : "Klerio est prêt"}
       />
     </div>
   );

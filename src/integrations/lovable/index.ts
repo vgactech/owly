@@ -10,7 +10,7 @@ type SignInOptions = {
 };
 
 // Session stored in sessionStorage to survive soft navigation
-const SESSION_KEY = "owly_session";
+const SESSION_KEY = "klerio_session";
 
 export type KlerioSession = {
   access_token: string;

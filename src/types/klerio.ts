@@ -1,5 +1,5 @@
 /**
- * Owly — core domain types (Lot 1)
+ * Klerio — core domain types (Lot 1)
  * DEBUG MODE ACTIVE
  * CERTIFIED_100=false | unique_human_proven=false
  */
@@ -26,7 +26,7 @@ export interface ChatMessage {
 
 // ─── Session ─────────────────────────────────────────────────────────────────
 
-export interface OwlyChatSession {
+export interface KlerioChatSession {
   sessionId: string;
   userId: string;
   workspaceId: string;
@@ -40,7 +40,7 @@ export interface OwlyChatSession {
 
 export type DocumentStatus = "pending" | "processing" | "ready" | "error";
 
-export interface OwlyDocument {
+export interface KlerioDocument {
   docId: string;
   fileName: string;
   mimeType: string;
@@ -55,8 +55,8 @@ export interface OwlyDocument {
 
 // ─── Workspace (GitHub-as-DB identity) ───────────────────────────────────────
 
-export interface OwlyWorkspace {
-  /** Stable ID — used as GitHub repo suffix `owly-memory-<workspaceId>` */
+export interface KlerioWorkspace {
+  /** Stable ID — used as GitHub repo suffix `klerio-memory-<workspaceId>` */
   workspaceId: string;
   ownerId: string;
   githubRepo?: string;
@@ -82,5 +82,5 @@ export const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB hard limit
 export const MAX_FILES_PER_SEND = 10;
 
 export type FileUploadResult =
-  | { ok: true; document: OwlyDocument }
+  | { ok: true; document: KlerioDocument }
   | { ok: false; error: "TOO_LARGE" | "TOO_MANY" | "UNSUPPORTED_TYPE" | "UNKNOWN" };
