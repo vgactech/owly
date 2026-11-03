@@ -1,6 +1,6 @@
 /**
  * Server Function: /api/sessions
- * Validates and creates Klerio user sessions via Lovable cloud auth.
+ * Validates and creates Owly user sessions via Lovable cloud auth.
  * Secrets (Lovable token) are read server-side only — never exposed to client.
  * DEBUG MODE ACTIVE
  *
@@ -33,7 +33,7 @@ export interface SessionResponse {
 
 /**
  * createSessionHandler — validates a Lovable token server-side and returns a
- * Klerio session object. No token is ever sent back to the client.
+ * Owly session object. No token is ever sent back to the client.
  *
  * DEBUG: logs session creation without exposing the token.
  */

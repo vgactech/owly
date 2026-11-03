@@ -1,5 +1,5 @@
 /**
- * Klerio — core domain types (Lot 1)
+ * Owly — core domain types (Lot 1)
  * DEBUG MODE ACTIVE
  * CERTIFIED_100=false | unique_human_proven=false
  */

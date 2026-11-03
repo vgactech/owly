@@ -87,7 +87,7 @@ async function callOpenAI(text: string, images: ImageInput[]): Promise<string> {
         {
           role: "system",
           content:
-            "Tu es Klerio, un assistant personnel organisé, bienveillant et professionnel. " +
+            "Tu es Owly, un assistant personnel organisé, bienveillant et professionnel. " +
             "Réponds en français sauf si l'utilisateur écrit dans une autre langue. " +
             "Pour les résultats OCR, indique toujours « À vérifier » si le contenu est incertain.",
         },

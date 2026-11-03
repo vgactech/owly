@@ -1,4 +1,4 @@
-# Transmission Klerio à Bob IDE
+# Transmission Owly à Bob IDE
 
 - [x] Rédiger le dossier de transmission et répondre aux six questions de l’audit.
 - [x] Définir les limites du stockage GitHub, la sécurité et les contrats de journalisation.

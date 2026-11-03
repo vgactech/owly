@@ -1,6 +1,6 @@
-# Klerio Project Hub
+# Owly
 
-ouvre le nouveau projet qui sappele klerio et attend mes ordres
+Application RPG hibou — sélecteur de classe, mascotte Owly, chat IA.
 
 This project was built with [Lovable](https://lovable.dev).
 
