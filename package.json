@@ -3,6 +3,9 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
@@ -11,7 +14,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:sprites2d": "vitest run packages/sprites2d-*/src/**/*.test.ts"
   },
   "overrides": {
     "rolldown": "1.2.15"
