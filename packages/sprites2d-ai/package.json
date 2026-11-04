@@ -1,0 +1,17 @@
+{
+  "name": "@sprites2d/ai",
+  "version": "0.1.0",
+  "description": "SPRITES 2D — AI Generation Service (OpenAI DALL-E, Claude, Bob, local fallback)",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./providers": "./src/providers/index.ts"
+  },
+  "dependencies": {
+    "@sprites2d/schema": "workspace:*",
+    "@sprites2d/character": "workspace:*"
+  },
+  "license": "PROPRIETARY"
+}

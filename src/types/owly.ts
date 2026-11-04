@@ -73,6 +73,18 @@ export interface Hero {
   xp: number;
   questionsAnswered: number;
   createdAt: string;
+  /**
+   * Character DNA généré par SPRITES 2D CharacterStudio.
+   * Optionnel — absent si le héros a été créé via l'ancien HeroSelector.
+   * Présent si le héros a utilisé le parcours CharacterStudio complet.
+   * RÈGLE : ce champ est en lecture seule après création (immuable).
+   *
+   * Import dynamique évité pour ne pas coupler les types OWLY à sprites2d-schema.
+   * Le type est `unknown` ici — les composants qui lisent ce champ doivent
+   * importer CharacterDNA depuis @sprites2d/schema directement.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dna?: Record<string, any>;
 }
 
 // ─── Personnalité ─────────────────────────────────────────────────────────────

@@ -14,6 +14,14 @@ export default defineConfig({
     ],
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+      "@sprites2d/schema": path.resolve(__dirname, "./packages/sprites2d-schema/src/index.ts"),
+      "@sprites2d/character": path.resolve(__dirname, "./packages/sprites2d-character/src/index.ts"),
+      "@sprites2d/quality": path.resolve(__dirname, "./packages/sprites2d-quality/src/index.ts"),
+      "@sprites2d/ai/providers": path.resolve(__dirname, "./packages/sprites2d-ai/src/providers/index.ts"),
+      "@sprites2d/ai": path.resolve(__dirname, "./packages/sprites2d-ai/src/providers/index.ts"),
+      "@sprites2d/core": path.resolve(__dirname, "./packages/sprites2d-core/src/index.ts"),
+    },
   },
 });

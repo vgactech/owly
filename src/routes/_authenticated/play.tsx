@@ -10,6 +10,7 @@ import { ChatFeed } from "@/components/chat/ChatFeed";
 import { ChatComposer, type ComposerSubmitPayload } from "@/components/chat/ChatComposer";
 import { OwlyMascot } from "@/components/owly/OwlyMascot";
 import { HeroSelector } from "@/components/owly/HeroSelector";
+import { CharacterStudio, type CharacterStudioResult } from "@/components/owly/CharacterStudio";
 import { PersonalityQuest } from "@/components/owly/PersonalityQuest";
 import { GroupLobby } from "@/components/owly/GroupLobby";
 import { outbox } from "@/lib/outbox";
@@ -39,6 +40,8 @@ function PlayRoute() {
   };
 
   const [phase, setPhase] = useState<GamePhase>("hero-select");
+  /** true = utiliser le CharacterStudio SPRITES 2D ; false = HeroSelector classique */
+  const [useStudio, setUseStudio] = useState<boolean>(true);
   const [hero, setHero] = useState<Hero | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [mode, setMode] = useState<ChatMode>("quest");
@@ -73,6 +76,34 @@ function PlayRoute() {
       setHero(newHero);
       setPhase("personality-quest");
       console.debug("[DEBUG][play] Hero created:", newHero);
+    },
+    [user.id],
+  );
+
+  /** Appelé par CharacterStudio quand le joueur confirme son personnage */
+  const handleStudioComplete = useCallback(
+    (result: CharacterStudioResult) => {
+      const newHero: Hero = {
+        id: nanoid(),
+        userId: user.id,
+        name: result.name,
+        heroClass: result.heroClass,
+        animalId: result.animal.id,
+        personalityTraits: {
+          openness: 50, conscientiousness: 50, extraversion: 50,
+          agreeableness: 50, neuroticism: 50, intuition: 50, thinking: 50,
+        },
+        level: 1, xp: 0, questionsAnswered: 0,
+        createdAt: new Date().toISOString(),
+        dna: result.dna as unknown as Record<string, unknown>,
+      };
+      setHero(newHero);
+      setPhase("personality-quest");
+      console.debug("[DEBUG][play] CharacterStudio hero created:", {
+        id: newHero.id,
+        dnaId: result.dna.id,
+        heroClass: newHero.heroClass,
+      });
     },
     [user.id],
   );
@@ -181,7 +212,53 @@ function PlayRoute() {
   if (phase === "hero-select") {
     return (
       <PageWrapper title="CRÉER TON HÉROS" user={user}>
-        <HeroSelector onSelect={handleHeroCreate} />
+        {/* Mode SPRITES 2D CharacterStudio (défaut) */}
+        {useStudio ? (
+          <div>
+            {/* Bouton de bascule vers l'ancien sélecteur */}
+            <div style={{ textAlign: "right", marginBottom: 8 }}>
+              <button
+                onClick={() => setUseStudio(false)}
+                style={{
+                  padding: "4px 12px",
+                  fontSize: 11,
+                  backgroundColor: "transparent",
+                  border: "1px solid #444",
+                  color: "#888",
+                  cursor: "pointer",
+                  fontFamily: "monospace",
+                }}
+              >
+                Mode rapide →
+              </button>
+            </div>
+            <CharacterStudio
+              onComplete={handleStudioComplete}
+              initialPreset="MAGE"
+            />
+          </div>
+        ) : (
+          /* Ancien HeroSelector — mode rapide */
+          <div>
+            <div style={{ textAlign: "right", marginBottom: 8 }}>
+              <button
+                onClick={() => setUseStudio(true)}
+                style={{
+                  padding: "4px 12px",
+                  fontSize: 11,
+                  backgroundColor: "transparent",
+                  border: "1px solid #FFD700",
+                  color: "#FFD700",
+                  cursor: "pointer",
+                  fontFamily: "monospace",
+                }}
+              >
+                ← Créateur avancé
+              </button>
+            </div>
+            <HeroSelector onSelect={handleHeroCreate} />
+          </div>
+        )}
       </PageWrapper>
     );
   }

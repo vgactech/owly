@@ -13,9 +13,9 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:sprites2d": "vitest run packages/sprites2d-*/src/**/*.test.ts"
+    "test": "node --experimental-vm-modules ./node_modules/vitest/dist/cli.js run",
+    "test:watch": "node --experimental-vm-modules ./node_modules/vitest/dist/cli.js",
+    "test:sprites2d": "node --experimental-vm-modules ./node_modules/vitest/dist/cli.js run packages/sprites2d-*/src/**/*.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

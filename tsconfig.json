@@ -3,6 +3,8 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/types/shims/*.d.ts",
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
     "vite.config.ts",
     "vitest.config.ts",
     "eslint.config.js"
@@ -31,7 +33,13 @@
     "exactOptionalPropertyTypes": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@sprites2d/schema": ["./packages/sprites2d-schema/src/index.ts"],
+      "@sprites2d/character": ["./packages/sprites2d-character/src/index.ts"],
+      "@sprites2d/quality": ["./packages/sprites2d-quality/src/index.ts"],
+      "@sprites2d/ai": ["./packages/sprites2d-ai/src/providers/index.ts"],
+      "@sprites2d/ai/providers": ["./packages/sprites2d-ai/src/providers/index.ts"],
+      "@sprites2d/core": ["./packages/sprites2d-core/src/index.ts"]
     }
   }
 }
