@@ -1,487 +1,355 @@
 /**
- * sprites2d-core — Moteur d'assemblage déterministe SPRITES 2D
+ * SPRITES 2D — Core Engine
+ * Point d'entrée central — orchestrateur de tous les modules sprites2d-*
  *
- * Projet : OWLY / SPRITES 2D (VGACTech)
+ * Projet : OWLY / SPRITES 2D Universal Asset Creation Engine
  * Module : sprites2d-core
- * Auteur : ARTCB Project <official@artcb.space>
  *
- * CERTIFIED_100=false | unique_human_proven=false
- * Mode DEBUG actif
+ * RÈGLE ABSOLUE : Ce package ne doit JAMAIS importer depuis OWLY.
+ *                 C'est OWLY qui importe sprites2d-*, jamais l'inverse.
  *
- * PRINCIPE : ce moteur ne dépend d'aucune IA, d'aucun réseau, d'aucune API externe.
- * Les mêmes paramètres d'entrée produisent toujours la même sortie.
- * Si le résultat change, c'est un bug.
+ * DEBUG MODE ACTIVE | CERTIFIED_100=false | unique_human_proven=false
  */
 
-import type {
-  CharacterDNA,
+// ─── Re-exports publics des sous-packages ─────────────────────────────────────
+
+// Schema — tous les types partagés
+export type {
   SpeciesId,
-  CharacterClass,
-  GraphicStyle,
-  MorphologyDefinition,
-  SkeletonFamily,
-  ComponentReference,
-  EquipmentSlots,
-  DNAMutation,
+  SpeciesFamily,
+  Species,
+  AnatomicTrait,
+  MorphologySize,
+  MorphologyBuild,
+  MorphologyProportions,
+  Morphology,
   CharacterPalette,
-  AnatomyZone,
-  SpeciesDefinition,
-  AnchorPointId,
-  Vector2D,
+  SkeletonType,
+  SkeletonBone,
+  Skeleton,
+  EquipmentSlot,
+  EquipmentType,
+  EquipmentItem,
+  CharacterDNA,
+  HeroClassDNA,
+  GraphicStyle,
+  CharacterView,
+  GeneratedView,
+  CharacterDNAHistoryEntry,
+  CharacterDNAMeta,
+  QualityCheckResult,
+  QualityFailure,
+  SpriteGenerationRequest,
+  SpriteGenerationResult,
+  Sprites2DConfig,
 } from "@sprites2d/schema";
-import { randomUUID } from "./uuid.js";
 
-// ─── Morphologies de référence par espèce ────────────────────────────────────
+// Character — moteur déterministe de personnages
+export {
+  SPECIES_REGISTRY,
+  computeHybridTraits,
+  MORPHOLOGY_PRESETS,
+  buildSkeleton,
+  buildCharacterDNA,
+  updateCharacterDNA,
+  OWLY_HERO_PRESETS,
+  buildOwlyHeroPresets,
+} from "@sprites2d/character";
 
-const SPECIES_MORPHOLOGY_DEFAULTS: Record<string, Partial<MorphologyDefinition>> = {
-  OWL: {
-    heightRatio: 1.0,
-    corpulenceRatio: 0.9,
-    armLengthRatio: 1.1,   // ailes légèrement plus longues
-    legLengthRatio: 0.7,   // pattes courtes
-    headSizeRatio: 1.2,    // grosse tête hibou
-    hasWings: true,
-    hasTail: false,
-    hasHorns: false,
-    hasExtraLimbs: false,
-    extraLimbCount: 0,
-    skeletonFamily: "AVIAN",
-  },
-  CAT: {
-    heightRatio: 0.95,
-    corpulenceRatio: 0.85,
-    armLengthRatio: 0.9,
-    legLengthRatio: 0.95,
-    headSizeRatio: 1.1,
-    hasWings: false,
-    hasTail: true,
-    hasHorns: false,
-    hasExtraLimbs: false,
-    extraLimbCount: 0,
-    skeletonFamily: "HUMANOID",
-  },
-  WOLF: {
-    heightRatio: 1.1,
-    corpulenceRatio: 1.1,
-    armLengthRatio: 1.0,
-    legLengthRatio: 1.05,
-    headSizeRatio: 1.1,
-    hasWings: false,
-    hasTail: true,
-    hasHorns: false,
-    hasExtraLimbs: false,
-    extraLimbCount: 0,
-    skeletonFamily: "HUMANOID",
-  },
-  FOX: {
-    heightRatio: 0.9,
-    corpulenceRatio: 0.8,
-    armLengthRatio: 0.9,
-    legLengthRatio: 0.95,
-    headSizeRatio: 1.05,
-    hasWings: false,
-    hasTail: true,
-    hasHorns: false,
-    hasExtraLimbs: false,
-    extraLimbCount: 0,
-    skeletonFamily: "HUMANOID",
-  },
-  DRAGON: {
-    heightRatio: 1.3,
-    corpulenceRatio: 1.3,
-    armLengthRatio: 1.2,
-    legLengthRatio: 1.1,
-    headSizeRatio: 1.2,
-    hasWings: true,
-    hasTail: true,
-    hasHorns: true,
-    hasExtraLimbs: false,
-    extraLimbCount: 0,
-    skeletonFamily: "HUMANOID",
-  },
-  RABBIT: {
-    heightRatio: 0.85,
-    corpulenceRatio: 0.8,
-    armLengthRatio: 0.85,
-    legLengthRatio: 1.0,
-    headSizeRatio: 1.15,
-    hasWings: false,
-    hasTail: true,
-    hasHorns: false,
-    hasExtraLimbs: false,
-    extraLimbCount: 0,
-    skeletonFamily: "HUMANOID",
-  },
-  BEAR: {
-    heightRatio: 1.2,
-    corpulenceRatio: 1.4,
-    armLengthRatio: 1.1,
-    legLengthRatio: 1.0,
-    headSizeRatio: 1.1,
-    hasWings: false,
-    hasTail: true,
-    hasHorns: false,
-    hasExtraLimbs: false,
-    extraLimbCount: 0,
-    skeletonFamily: "HUMANOID",
-  },
-  EAGLE: {
-    heightRatio: 1.05,
-    corpulenceRatio: 0.95,
-    armLengthRatio: 1.2,  // ailes
-    legLengthRatio: 0.75,
-    headSizeRatio: 1.0,
-    hasWings: true,
-    hasTail: true,
-    hasHorns: false,
-    hasExtraLimbs: false,
-    extraLimbCount: 0,
-    skeletonFamily: "AVIAN",
-  },
-};
+// Quality — moteur de validation
+export { QualityEngine, checkP1Acceptance } from "@sprites2d/quality";
 
-// ─── Points d'ancrage de base par famille squelettale ─────────────────────────
+// AI — providers de génération
+export { GenerationRouter } from "@sprites2d/ai/providers";
 
-const BASE_ANCHOR_POINTS: Record<SkeletonFamily, Partial<Record<AnchorPointId, Vector2D>>> = {
-  HUMANOID: {
-    HEAD_TOP: { x: 0.5, y: 0.0 },
-    NECK: { x: 0.5, y: 0.18 },
-    SHOULDER_LEFT: { x: 0.25, y: 0.22 },
-    SHOULDER_RIGHT: { x: 0.75, y: 0.22 },
-    ELBOW_LEFT: { x: 0.2, y: 0.38 },
-    ELBOW_RIGHT: { x: 0.8, y: 0.38 },
-    WRIST_LEFT: { x: 0.15, y: 0.54 },
-    WRIST_RIGHT: { x: 0.85, y: 0.54 },
-    CHEST: { x: 0.5, y: 0.3 },
-    WAIST: { x: 0.5, y: 0.5 },
-    BELT: { x: 0.5, y: 0.52 },
-    SPINE_TOP: { x: 0.5, y: 0.2 },
-    SPINE_BOTTOM: { x: 0.5, y: 0.52 },
-    HIP_LEFT: { x: 0.38, y: 0.54 },
-    HIP_RIGHT: { x: 0.62, y: 0.54 },
-    KNEE_LEFT: { x: 0.38, y: 0.72 },
-    KNEE_RIGHT: { x: 0.62, y: 0.72 },
-    ANKLE_LEFT: { x: 0.38, y: 0.9 },
-    ANKLE_RIGHT: { x: 0.62, y: 0.9 },
-    WEAPON_MAIN_HAND: { x: 0.85, y: 0.58 },
-    WEAPON_OFF_HAND: { x: 0.15, y: 0.58 },
-    EFFECT_ORIGIN: { x: 0.5, y: 0.3 },
-    TAIL_ATTACH: { x: 0.5, y: 0.56 },
-    WING_ATTACH_LEFT: { x: 0.3, y: 0.25 },
-    WING_ATTACH_RIGHT: { x: 0.7, y: 0.25 },
-    HORN_LEFT: { x: 0.38, y: 0.02 },
-    HORN_RIGHT: { x: 0.62, y: 0.02 },
-  },
-  AVIAN: {
-    HEAD_TOP: { x: 0.5, y: 0.0 },
-    NECK: { x: 0.5, y: 0.2 },
-    CHEST: { x: 0.5, y: 0.35 },
-    WAIST: { x: 0.5, y: 0.55 },
-    WING_ATTACH_LEFT: { x: 0.2, y: 0.28 },
-    WING_ATTACH_RIGHT: { x: 0.8, y: 0.28 },
-    WRIST_LEFT: { x: 0.08, y: 0.5 },
-    WRIST_RIGHT: { x: 0.92, y: 0.5 },
-    ANKLE_LEFT: { x: 0.38, y: 0.88 },
-    ANKLE_RIGHT: { x: 0.62, y: 0.88 },
-    WEAPON_MAIN_HAND: { x: 0.92, y: 0.52 },
-    WEAPON_OFF_HAND: { x: 0.08, y: 0.52 },
-    EFFECT_ORIGIN: { x: 0.5, y: 0.35 },
-  },
-  QUADRUPED: {
-    HEAD_TOP: { x: 0.5, y: 0.0 },
-    NECK: { x: 0.5, y: 0.15 },
-    SPINE_TOP: { x: 0.5, y: 0.2 },
-    SPINE_BOTTOM: { x: 0.5, y: 0.5 },
-    TAIL_ATTACH: { x: 0.9, y: 0.4 },
-    WRIST_LEFT: { x: 0.15, y: 0.7 },
-    WRIST_RIGHT: { x: 0.4, y: 0.7 },
-    ANKLE_LEFT: { x: 0.6, y: 0.85 },
-    ANKLE_RIGHT: { x: 0.85, y: 0.85 },
-    EFFECT_ORIGIN: { x: 0.5, y: 0.2 },
-  },
-  SERPENTINE: {
-    HEAD_TOP: { x: 0.5, y: 0.0 },
-    NECK: { x: 0.5, y: 0.1 },
-    SPINE_TOP: { x: 0.5, y: 0.2 },
-    SPINE_BOTTOM: { x: 0.5, y: 0.8 },
-    EFFECT_ORIGIN: { x: 0.5, y: 0.2 },
-  },
-  ARACHNID: {
-    HEAD_TOP: { x: 0.5, y: 0.0 },
-    CHEST: { x: 0.5, y: 0.3 },
-    WAIST: { x: 0.5, y: 0.5 },
-    EFFECT_ORIGIN: { x: 0.5, y: 0.3 },
-  },
-  HYBRID: {
-    HEAD_TOP: { x: 0.5, y: 0.0 },
-    NECK: { x: 0.5, y: 0.18 },
-    CHEST: { x: 0.5, y: 0.3 },
-    WAIST: { x: 0.5, y: 0.5 },
-    EFFECT_ORIGIN: { x: 0.5, y: 0.3 },
-  },
-};
+// ─── Engine Principal ─────────────────────────────────────────────────────────
 
-// ─── DNA Factory ──────────────────────────────────────────────────────────────
-
-export interface CreateCharacterOptions {
-  primarySpecies: SpeciesId;
-  secondarySpecies?: SpeciesId;
-  hybridRatio?: number;
-  characterClass: CharacterClass;
-  style?: GraphicStyle;
-  name?: string;
-}
+import type { Sprites2DConfig, CharacterDNA, SpriteGenerationRequest, SpriteGenerationResult, CharacterView } from "@sprites2d/schema";
+import { buildCharacterDNA, updateCharacterDNA } from "@sprites2d/character";
+import { QualityEngine } from "@sprites2d/quality";
+import { GenerationRouter } from "@sprites2d/ai/providers";
 
 /**
- * Crée un CharacterDNA valide à partir des options fournies.
- * DÉTERMINISTE : les mêmes options produisent toujours la même structure
- * (seul le dnaId et createdAt varient car UUID et timestamp).
- */
-export function createCharacterDNA(options: CreateCharacterOptions): CharacterDNA {
-  const {
-    primarySpecies,
-    secondarySpecies,
-    hybridRatio = 1.0,
-    characterClass,
-    style = "PIXEL_ART",
-    name,
-  } = options;
-
-  const baseMorphology = SPECIES_MORPHOLOGY_DEFAULTS[primarySpecies] ?? {};
-  const skeletonFamily: SkeletonFamily =
-    (baseMorphology.skeletonFamily as SkeletonFamily) ?? "HUMANOID";
-
-  const anchorPoints = BASE_ANCHOR_POINTS[skeletonFamily] ?? {};
-
-  // Fusion hybride : interpolation linéaire des ratios morphologiques
-  let morphology: MorphologyDefinition = {
-    heightRatio: baseMorphology.heightRatio ?? 1.0,
-    corpulenceRatio: baseMorphology.corpulenceRatio ?? 1.0,
-    armLengthRatio: baseMorphology.armLengthRatio ?? 1.0,
-    legLengthRatio: baseMorphology.legLengthRatio ?? 1.0,
-    headSizeRatio: baseMorphology.headSizeRatio ?? 1.0,
-    anchorPoints,
-    hasWings: baseMorphology.hasWings ?? false,
-    hasTail: baseMorphology.hasTail ?? false,
-    hasHorns: baseMorphology.hasHorns ?? false,
-    hasExtraLimbs: baseMorphology.hasExtraLimbs ?? false,
-    extraLimbCount: baseMorphology.extraLimbCount ?? 0,
-    skeletonFamily,
-  };
-
-  if (secondarySpecies && hybridRatio < 1.0) {
-    morphology = mergeHybridMorphology(
-      morphology,
-      SPECIES_MORPHOLOGY_DEFAULTS[secondarySpecies] ?? {},
-      hybridRatio
-    );
-  }
-
-  const now = new Date().toISOString();
-
-  const dna: CharacterDNA = {
-    dnaId: randomUUID(),
-    createdAt: now,
-    version: 1,
-    modificationHistory: [],
-    primarySpecies,
-    secondarySpecies,
-    hybridRatio: secondarySpecies ? hybridRatio : undefined,
-    morphology,
-    palette: {
-      colors: {},
-      lockedAt: now,
-    },
-    style,
-    name,
-    characterClass,
-    components: [],
-    equipment: { slots: {} },
-    certified: false,
-    unique_human_proven: false,
-  };
-
-  return dna;
-}
-
-/**
- * Calcule la morphologie hybride par interpolation linéaire.
- * hybridRatio = 1.0 → 100% espèce primaire
- * hybridRatio = 0.5 → 50%/50%
- * hybridRatio = 0.0 → 100% espèce secondaire
+ * Sprites2DEngine — Façade principale du moteur.
  *
- * Surcharge publique : accepte deux SpeciesId pour convenance.
+ * Instancier via createSprites2DEngine(config).
+ *
+ * Flux standard :
+ *  1. engine.createCharacter(params) → CharacterDNA
+ *  2. engine.generateView(dna, view) → SpriteGenerationResult
+ *  3. engine.validateCharacter(dna) → QualityCheckResult
+ *  4. engine.exportCharacter(dna) → ExportPackage
  */
-export function mergeHybridMorphology(
-  primary: SpeciesId | MorphologyDefinition,
-  secondary: SpeciesId | Partial<MorphologyDefinition>,
-  ratio = 0.5
-): MorphologyDefinition {
-  const resolveMorphology = (s: SpeciesId | MorphologyDefinition | Partial<MorphologyDefinition>): Partial<MorphologyDefinition> => {
-    if (typeof s === "string") {
-      return SPECIES_MORPHOLOGY_DEFAULTS[s] ?? {};
+export class Sprites2DEngine {
+  private readonly config: Sprites2DConfig;
+  private readonly qualityEngine: QualityEngine;
+  private readonly generationRouter: GenerationRouter;
+
+  /** Tous les personnages actifs — en mémoire durant la session */
+  private readonly characters: Map<string, CharacterDNA> = new Map();
+
+  constructor(config: Sprites2DConfig) {
+    this.config = config;
+    this.qualityEngine = new QualityEngine();
+    this.generationRouter = new GenerationRouter(config);
+
+    if (config.debug) {
+      console.debug("[SPRITES2D:core] Engine initialisé", {
+        debug: config.debug,
+        defaultStyle: config.defaultStyle,
+        providers: {
+          openai: !!config.providers.openai,
+          claude: !!config.providers.claude,
+          bob: !!config.providers.bob,
+          local: !!config.providers.local?.enabled,
+        },
+        autoValidate: config.autoValidate,
+      });
     }
-    return s as Partial<MorphologyDefinition>;
-  };
-
-  const pMorph = resolveMorphology(primary) as MorphologyDefinition;
-  const sMorph = resolveMorphology(secondary);
-
-  const lerp = (a: number, b: number | undefined, r: number): number =>
-    a * r + (b ?? a) * (1 - r);
-
-  const skeletonFamily: SkeletonFamily = pMorph.skeletonFamily ?? "HUMANOID";
-
-  return {
-    heightRatio: lerp(pMorph.heightRatio ?? 1.0, sMorph.heightRatio, ratio),
-    corpulenceRatio: lerp(pMorph.corpulenceRatio ?? 1.0, sMorph.corpulenceRatio, ratio),
-    armLengthRatio: lerp(pMorph.armLengthRatio ?? 1.0, sMorph.armLengthRatio, ratio),
-    legLengthRatio: lerp(pMorph.legLengthRatio ?? 1.0, sMorph.legLengthRatio, ratio),
-    headSizeRatio: lerp(pMorph.headSizeRatio ?? 1.0, sMorph.headSizeRatio, ratio),
-    anchorPoints: pMorph.anchorPoints ?? {},
-    // Appendices : héritage si présent dans l'une ou l'autre espèce
-    hasWings: (pMorph.hasWings ?? false) || (sMorph.hasWings ?? false),
-    hasTail: (pMorph.hasTail ?? false) || (sMorph.hasTail ?? false),
-    hasHorns: (pMorph.hasHorns ?? false) || (sMorph.hasHorns ?? false),
-    hasExtraLimbs: (pMorph.hasExtraLimbs ?? false) || (sMorph.hasExtraLimbs ?? false),
-    extraLimbCount: Math.max(pMorph.extraLimbCount ?? 0, sMorph.extraLimbCount ?? 0),
-    skeletonFamily: (sMorph.skeletonFamily === "HYBRID" || pMorph.skeletonFamily !== sMorph.skeletonFamily)
-      ? "HYBRID"
-      : skeletonFamily,
-  };
-}
-
-// ─── Mutation contrôlée du DNA ────────────────────────────────────────────────
-
-export type MutationAuthor = "USER" | "SYSTEM" | "AI_SUGGESTION";
-
-/** Batch mutation entry — field uses dot-notation for nested paths (e.g. "palette.primaryColor") */
-export interface BatchMutation {
-  field: string;
-  value: unknown;
-  author?: MutationAuthor;
-}
-
-/**
- * Applies one or more mutations to a DNA and returns the updated copy.
- * The original DNA is never modified (immutability).
- * Returns null only if mutations array is provided but ALL entries are structurally invalid.
- * Returns a copy of the original DNA if mutations array is empty.
- *
- * Supports dot-notation for nested fields: "palette.primaryColor", "morphology.heightRatio".
- */
-export function mutateDNA(
-  dna: CharacterDNA,
-  mutations: BatchMutation[]
-): CharacterDNA | null {
-  if (mutations.length === 0) {
-    // Empty mutations = identity, return copy
-    return { ...dna };
   }
 
-  let result: CharacterDNA = { ...dna };
+  // ─── Lifecycle du personnage ─────────────────────────────────────────────────
 
-  for (const mut of mutations) {
-    const { field, value, author = "USER" } = mut;
-    const now = new Date().toISOString();
-    const parts = field.split(".");
+  /**
+   * Crée un nouveau personnage à partir de paramètres minimaux.
+   * Retourne un CharacterDNA versionné.
+   */
+  createCharacter(params: {
+    primarySpecies: import("@sprites2d/schema").SpeciesId;
+    secondarySpecies?: import("@sprites2d/schema").SpeciesId;
+    heroClass?: import("@sprites2d/schema").HeroClassDNA;
+    graphicStyle?: import("@sprites2d/schema").GraphicStyle;
+    palette?: Partial<import("@sprites2d/schema").CharacterPalette>;
+  }): CharacterDNA {
+    const dna = buildCharacterDNA({
+      primarySpecies: params.primarySpecies,
+      secondarySpecies: params.secondarySpecies ?? null,
+      heroClass: params.heroClass ?? "CUSTOM",
+      graphicStyle: params.graphicStyle ?? this.config.defaultStyle,
+      ...(params.palette !== undefined ? { palette: params.palette } : {}),
+    });
 
-    if (parts.length === 1) {
-      // Top-level field
-      const key = parts[0] as keyof CharacterDNA;
-      const mutation: DNAMutation = {
-        timestamp: now,
-        field,
-        previousValue: result[key],
-        newValue: value,
-        author,
-      };
-      result = {
-        ...result,
-        [key]: value,
-        version: result.version + 1,
-        modificationHistory: [...result.modificationHistory, mutation],
-      };
-    } else if (parts.length === 2) {
-      // One-level nested field (e.g. "palette.primaryColor")
-      const [parent, child] = parts;
-      const parentKey = parent as keyof CharacterDNA;
-      const parentObj = result[parentKey];
-      if (parentObj && typeof parentObj === "object" && !Array.isArray(parentObj)) {
-        const mutation: DNAMutation = {
-          timestamp: now,
-          field,
-          previousValue: (parentObj as Record<string, unknown>)[child],
-          newValue: value,
-          author,
+    this.characters.set(dna.id, dna);
+
+    if (this.config.debug) {
+      console.debug(`[SPRITES2D:core] Personnage créé: ${dna.id}`, {
+        primarySpecies: dna.primarySpecies,
+        secondarySpecies: dna.secondarySpecies,
+        effectiveTraits: dna.effectiveTraits,
+      });
+    }
+
+    return dna;
+  }
+
+  /**
+   * Met à jour un champ du CharacterDNA.
+   * Crée un nouveau snapshot versionné — ne modifie pas l'original.
+   */
+  updateCharacter(
+    dnaId: string,
+    changes: Parameters<typeof updateCharacterDNA>[1]
+  ): CharacterDNA {
+    const current = this.characters.get(dnaId);
+    if (!current) {
+      throw new Error(`[SPRITES2D:core] Personnage introuvable: ${dnaId}`);
+    }
+
+    const updated = updateCharacterDNA(current, changes);
+    this.characters.set(updated.id, updated);
+
+    if (this.config.debug) {
+      console.debug(`[SPRITES2D:core] Personnage mis à jour: ${dnaId} → v${updated.version}`, {
+        changedFields: Object.keys(changes),
+      });
+    }
+
+    return updated;
+  }
+
+  /**
+   * Récupère un personnage par son ID.
+   */
+  getCharacter(dnaId: string): CharacterDNA | null {
+    return this.characters.get(dnaId) ?? null;
+  }
+
+  /**
+   * Liste tous les personnages actifs.
+   */
+  listCharacters(): CharacterDNA[] {
+    return Array.from(this.characters.values());
+  }
+
+  // ─── Génération visuelle ─────────────────────────────────────────────────────
+
+  /**
+   * Génère la vue d'un personnage via le provider disponible.
+   * Ordre de priorité : DALL-E → Claude → local déterministe.
+   */
+  async generateView(
+    dna: CharacterDNA,
+    view: CharacterView,
+    options?: { forceRegenerate?: boolean }
+  ): Promise<SpriteGenerationResult> {
+    const request: SpriteGenerationRequest = {
+      dna,
+      view,
+      forceRegenerate: options?.forceRegenerate ?? false,
+    };
+
+    if (this.config.debug) {
+      console.debug(`[SPRITES2D:core] Génération vue "${view}" pour ${dna.id}`, {
+        graphicStyle: dna.graphicStyle,
+        primarySpecies: dna.primarySpecies,
+      });
+    }
+
+    const result = await this.generationRouter.generate(request);
+
+    if (this.config.debug) {
+      console.debug(`[SPRITES2D:core] Résultat génération`, {
+        success: result.success,
+        provider: result.providerUsed,
+        durationMs: result.durationMs,
+      });
+    }
+
+    // Mise à jour du DNA avec la vue générée
+    if (result.success && result.view) {
+      const currentDna = this.characters.get(dna.id);
+      if (currentDna) {
+        const updatedDna: CharacterDNA = {
+          ...currentDna,
+          views: {
+            ...currentDna.views,
+            [view]: result.view,
+          },
+          updatedAt: new Date().toISOString(),
         };
-        result = {
-          ...result,
-          [parentKey]: { ...(parentObj as object), [child]: value },
-          version: result.version + 1,
-          modificationHistory: [...result.modificationHistory, mutation],
-        };
+        this.characters.set(dna.id, updatedDna);
       }
     }
-    // Deeper nesting not supported in this version — silently skipped
+
+    return result;
   }
 
-  return result;
-}
+  // ─── Validation ──────────────────────────────────────────────────────────────
 
-// ─── Serialisation ────────────────────────────────────────────────────────────
+  /**
+   * Valide un CharacterDNA — retourne un rapport QualityCheckResult.
+   */
+  validateCharacter(dna: CharacterDNA) {
+    const result = this.qualityEngine.validateCharacterDNA(dna);
 
-/**
- * Sérialise un CharacterDNA en JSON stable.
- * Stable = même DNA → même JSON (clés triées).
- */
-export function serializeDNA(dna: CharacterDNA): string {
-  return JSON.stringify(dna, Object.keys(dna).sort() as never);
-}
-
-/**
- * Désérialise un JSON en CharacterDNA avec validation basique.
- * Retourne null si le JSON est invalide ou si les champs obligatoires sont absents.
- * Ne lève jamais d'exception (fail-closed silencieux avec log DEBUG).
- */
-export function deserializeDNA(json: string): CharacterDNA | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json);
-  } catch (e) {
-    console.debug(`[sprites2d-core] deserializeDNA: JSON invalide — ${String(e)}`);
-    return null;
-  }
-
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    console.debug("[sprites2d-core] deserializeDNA: l'objet est null, non-objet ou tableau");
-    return null;
-  }
-
-  const obj = parsed as Record<string, unknown>;
-
-  // Vérifications des champs obligatoires
-  const required: (keyof CharacterDNA)[] = [
-    "dnaId", "createdAt", "version", "primarySpecies",
-    "characterClass", "style", "morphology", "palette",
-    "components", "equipment",
-  ];
-
-  for (const field of required) {
-    if (!(field in obj)) {
-      console.debug(`[sprites2d-core] deserializeDNA: champ obligatoire manquant — ${String(field)}`);
-      return null;
+    if (this.config.debug) {
+      console.debug(`[SPRITES2D:core] Validation ${dna.id}`, {
+        passed: result.passed,
+        failures: result.failures.length,
+        warnings: result.warnings.length,
+      });
     }
+
+    return result;
   }
 
-  // Les invariants sont toujours forcés à false — jamais overridables par désérialisation
-  return {
-    ...(obj as CharacterDNA),
-    certified: false,
-    unique_human_proven: false,
-  };
+  // ─── Export ───────────────────────────────────────────────────────────────────
+
+  /**
+   * Sérialise un CharacterDNA en package exportable (JSON + métadonnées).
+   * Ne génère pas les images — appeler generateView() avant.
+   */
+  exportCharacter(dna: CharacterDNA): CharacterExportPackage {
+    const validation = this.qualityEngine.validateCharacterDNA(dna);
+
+    const pkg: CharacterExportPackage = {
+      formatVersion: "sprites2d-v1",
+      exportedAt: new Date().toISOString(),
+      dna,
+      validation,
+      views: dna.views,
+      canBeUsedInGame: validation.passed && dna.meta.exportReady,
+    };
+
+    if (this.config.debug) {
+      console.debug(`[SPRITES2D:core] Export ${dna.id}`, {
+        canBeUsedInGame: pkg.canBeUsedInGame,
+        viewsCount: Object.keys(dna.views).length,
+      });
+    }
+
+    return pkg;
+  }
+
+  // ─── Diagnostics ─────────────────────────────────────────────────────────────
+
+  /**
+   * Retourne les informations de santé du moteur.
+   */
+  getEngineInfo(): EngineInfo {
+    return {
+      version: "0.1.0",
+      debug: this.config.debug,
+      charactersInMemory: this.characters.size,
+      providers: {
+        openai: !!this.config.providers.openai,
+        claude: !!this.config.providers.claude,
+        bob: !!this.config.providers.bob,
+        local: !!this.config.providers.local?.enabled,
+      },
+      defaultStyle: this.config.defaultStyle,
+      autoValidate: this.config.autoValidate,
+    };
+  }
 }
 
-// ─── Export ───────────────────────────────────────────────────────────────────
+// ─── Types exportés par ce module ─────────────────────────────────────────────
 
-export { SPECIES_MORPHOLOGY_DEFAULTS, BASE_ANCHOR_POINTS };
+export interface CharacterExportPackage {
+  formatVersion: "sprites2d-v1";
+  exportedAt: string;
+  dna: CharacterDNA;
+  validation: import("@sprites2d/schema").QualityCheckResult;
+  views: CharacterDNA["views"];
+  /** true si le personnage a passé la validation et peut être intégré dans un jeu */
+  canBeUsedInGame: boolean;
+}
+
+export interface EngineInfo {
+  version: string;
+  debug: boolean;
+  charactersInMemory: number;
+  providers: {
+    openai: boolean;
+    claude: boolean;
+    bob: boolean;
+    local: boolean;
+  };
+  defaultStyle: import("@sprites2d/schema").GraphicStyle;
+  autoValidate: boolean;
+}
+
+// ─── Factory ──────────────────────────────────────────────────────────────────
+
+/**
+ * createSprites2DEngine — Fonction de création du moteur.
+ *
+ * @example
+ * ```typescript
+ * const engine = createSprites2DEngine({
+ *   debug: true,
+ *   providers: {
+ *     openai: { apiKey: process.env.OPENAI_API_KEY!, model: "dall-e-3" },
+ *   },
+ *   defaultStyle: "pixel_art_32",
+ *   cacheDir: ".sprites2d-cache",
+ *   autoValidate: true,
+ * });
+ * ```
+ */
+export function createSprites2DEngine(config: Sprites2DConfig): Sprites2DEngine {
+  if (config.debug) {
+    console.debug("[SPRITES2D:core] Création du moteur SPRITES 2D...");
+  }
+  return new Sprites2DEngine(config);
+}

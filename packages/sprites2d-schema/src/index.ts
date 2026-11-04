@@ -1,359 +1,359 @@
 /**
- * @sprites2d/schema — Core type definitions for SPRITES 2D
+ * SPRITES 2D — Schema Package
+ * Contrats de données centraux partagés entre tous les packages sprites2d-*
  *
- * Projet : OWLY / SPRITES 2D (VGACTech)
- * Module : sprites2d-schema
- * Auteur : ARTCB Project <official@artcb.space>
+ * Projet : OWLY / SPRITES 2D Universal Asset Creation Engine
+ * Module : sprites2d-schema — types, interfaces, enums
  *
- * CERTIFIED_100=false | unique_human_proven=false
- * Mode DEBUG actif
+ * RULE: Ce package ne doit JAMAIS importer quoi que ce soit d'OWLY.
+ *       C'est OWLY qui importe sprites2d-*, jamais l'inverse.
  *
- * RÈGLE ABSOLUE : ce package ne dépend d'AUCUN autre package SPRITES 2D
- * ni d'OWLY. Il est la fondation commune importée par tous les autres.
+ * DEBUG MODE ACTIVE | CERTIFIED_100=false | unique_human_proven=false
  */
 
-// ─── Identifiants ─────────────────────────────────────────────────────────────
+// ─── Species ──────────────────────────────────────────────────────────────────
 
 export type SpeciesId =
-  | "OWL"
-  | "CAT"
-  | "WOLF"
-  | "FOX"
-  | "DRAGON"
-  | "RABBIT"
-  | "BEAR"
-  | "EAGLE"
-  | string; // Extensible par le projet
+  | "owl"
+  | "cat"
+  | "wolf"
+  | "fox"
+  | "dragon"
+  | "rabbit"
+  | "bear"
+  | "eagle"
+  | "reptile"
+  | "lion"
+  | "panther"
+  | "phoenix"
+  | "raven"
+  | "deer"
+  | "shark"
+  | "custom";
 
-export type CharacterClass =
-  | "SAMURAI"
-  | "CYBERPUNK"
-  | "MAGE"
-  | "ARCHER"
-  | "KNIGHT"
-  | "PIRATE"
-  | "NINJA"
-  | "TANK"
-  | "WARRIOR"
-  | "ASSASSIN"
-  | "PALADIN"
-  | "DRUID"
-  | "SUMMONER"
-  | "ENGINEER"
-  | "PRIEST"
-  | "NECROMANCER"
-  | "BARD"
-  | "BERSERKER"
-  | string;
+export type SpeciesFamily =
+  | "avian"      // hibou, aigle, phénix, corbeau
+  | "feline"     // chat, lion, panthère
+  | "canine"     // loup, renard
+  | "ursine"     // ours
+  | "draconic"   // dragon
+  | "lagomorph"  // lapin, lièvre
+  | "reptilian"  // serpent, lézard, croco
+  | "aquatic"    // requin, pieuvre
+  | "custom";
 
-export type GraphicStyle = "PIXEL_ART" | "CARTOON" | "ANIME" | "ISOMETRIC" | "CHIBI";
-
-export type SkeletonFamily =
-  | "HUMANOID"
-  | "QUADRUPED"
-  | "AVIAN"
-  | "SERPENTINE"
-  | "ARACHNID"
-  | "HYBRID";
-
-export type AnimationType =
-  // Déplacement
-  | "IDLE"
-  | "WALK"
-  | "RUN"
-  | "SPRINT"
-  // Sauts
-  | "JUMP_PREP"
-  | "JUMP"
-  | "FALL"
-  | "LAND"
-  // Combat
-  | "ATTACK_LIGHT"
-  | "ATTACK_HEAVY"
-  | "ATTACK_COMBO"
-  // Défense
-  | "BLOCK"
-  | "PARRY"
-  | "DODGE"
-  // Magie
-  | "CAST_SUMMON"
-  | "CAST_CHANNEL"
-  | "CAST_LAUNCH"
-  // Dégâts
-  | "HIT"
-  | "KNOCKBACK"
-  | "BURN"
-  | "FREEZE"
-  // États
-  | "POISON"
-  | "PARALYZED"
-  | "SLEEP"
-  // Vie
-  | "BREATHE"
-  | "WOUNDED"
-  | "FATIGUED"
-  // Mort
-  | "DEATH_COLLAPSE"
-  | "DEATH_DISSOLVE"
-  | "RESURRECT"
-  // Interaction
-  | "PICKUP"
-  | "OPEN"
-  | "TALK"
-  | "CRAFT"
-  // Spécial
-  | "FLY"
-  | "SWIM"
-  | "CLIMB"
-  | "TRANSFORM"
-  | string;
-
-// ─── Géométrie ────────────────────────────────────────────────────────────────
-
-export interface Vector2D {
-  x: number;
-  y: number;
+export interface Species {
+  id: SpeciesId;
+  name: string;
+  family: SpeciesFamily;
+  emoji: string;
+  /** Traits anatomiques portés par cette espèce */
+  anatomicTraits: AnatomicTrait[];
+  /** Familles compatibles pour hybridation */
+  hybridCompatible: SpeciesFamily[];
 }
 
-export interface Hitbox {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  type: "DAMAGE" | "HURT" | "PUSH" | "INTERACT";
-}
+export type AnatomicTrait =
+  | "tail"
+  | "wings"
+  | "horns"
+  | "feathers"
+  | "scales"
+  | "fur"
+  | "mane"
+  | "claws"
+  | "beak"
+  | "snout"
+  | "ears_animal"
+  | "whiskers"
+  | "fangs"
+  | "gills"
+  | "tentacles";
 
-// ─── Points d'ancrage anatomiques ─────────────────────────────────────────────
+// ─── Morphology ───────────────────────────────────────────────────────────────
 
-export type AnchorPointId =
-  | "HEAD_TOP"
-  | "NECK"
-  | "SHOULDER_LEFT"
-  | "SHOULDER_RIGHT"
-  | "ELBOW_LEFT"
-  | "ELBOW_RIGHT"
-  | "WRIST_LEFT"
-  | "WRIST_RIGHT"
-  | "HIP_LEFT"
-  | "HIP_RIGHT"
-  | "KNEE_LEFT"
-  | "KNEE_RIGHT"
-  | "ANKLE_LEFT"
-  | "ANKLE_RIGHT"
-  | "SPINE_TOP"
-  | "SPINE_BOTTOM"
-  | "WAIST"
-  | "CHEST"
-  | "BELT"
-  | "WING_ATTACH_LEFT"
-  | "WING_ATTACH_RIGHT"
-  | "TAIL_ATTACH"
-  | "HORN_LEFT"
-  | "HORN_RIGHT"
-  | "WEAPON_MAIN_HAND"
-  | "WEAPON_OFF_HAND"
-  | "EFFECT_ORIGIN"
-  | string;
+export type MorphologySize = "tiny" | "small" | "medium" | "large" | "giant";
+export type MorphologyBuild = "slim" | "average" | "athletic" | "stocky" | "massive";
+export type MorphologyProportions = "chibi" | "realistic" | "heroic" | "caricature";
 
-// ─── Morphologie ──────────────────────────────────────────────────────────────
-
-export interface MorphologyDefinition {
-  /** 1.0 = référence humanoïde standard */
-  heightRatio: number;
-  corpulenceRatio: number;
-  armLengthRatio: number;
-  legLengthRatio: number;
-  headSizeRatio: number;
-
-  /** Points d'ancrage avec coordonnées relatives (0-1) */
-  anchorPoints: Partial<Record<AnchorPointId, Vector2D>>;
-
-  /** Appendices présents */
-  hasWings: boolean;
-  hasTail: boolean;
-  hasHorns: boolean;
-  hasExtraLimbs: boolean;
-  extraLimbCount: number;
-
-  /** Famille squelettale pour choix du rig */
-  skeletonFamily: SkeletonFamily;
+export interface Morphology {
+  size: MorphologySize;
+  build: MorphologyBuild;
+  proportions: MorphologyProportions;
+  /** Hauteur en "tiles" (unité SPRITES 2D) */
+  heightTiles: number;
+  /** 0.0–2.0 : 1.0 = jambes standard */
+  legLengthFactor: number;
+  /** 0.0–2.0 : 1.0 = bras standard */
+  armLengthFactor: number;
+  /** 0.0–2.0 : 1.0 = tête standard */
+  headSizeFactor: number;
 }
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 
-export type AnatomyZone =
-  | "BODY_PRIMARY"
-  | "BODY_SECONDARY"
-  | "EYES"
-  | "BEAK_SNOUT"
-  | "EARS"
-  | "TAIL"
-  | "WINGS"
-  | "HORNS"
-  | "CLAWS"
-  | "MARKINGS";
-
 export interface CharacterPalette {
-  /** Couleurs figées par zone — hexadécimal ex: "#ff4422" */
-  colors: Partial<Record<AnatomyZone, string>>;
-  /** Date de fixation — la palette ne change plus après */
-  lockedAt: string;
+  /** Couleur principale du corps / fourrure / peau */
+  primary: string;     // hex #rrggbb
+  secondary: string;   // hex
+  accent: string;      // hex — yeux, points lumineux
+  /** Couleur de la fourrure / plumes secondaires */
+  marking: string;     // hex — rayures, taches
+  outlineColor: string; // hex — contour des pixels
 }
 
-// ─── Composants graphiques ────────────────────────────────────────────────────
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
 
-export interface ComponentReference {
-  componentId: string;
-  zone: AnatomyZone | string;
-  layerOrder: number;
-  /** Chemin relatif vers l'asset PNG */
-  assetPath: string;
-  /** SHA-256 du fichier pour intégrité */
-  sha256: string;
-  version: number;
+export type SkeletonType =
+  | "humanoid"
+  | "quadruped"
+  | "avian"
+  | "serpentine"
+  | "arachnid"
+  | "hybrid";
+
+export interface SkeletonBone {
+  id: string;
+  parentId: string | null;
+  /** Position relative au parent (en pixels à résolution 32×32) */
+  offsetX: number;
+  offsetY: number;
+  /** Angle en degrés */
+  rotation: number;
+  length: number;
 }
 
-// ─── Équipement ───────────────────────────────────────────────────────────────
-
-export type EquipmentSlotId =
-  | "HEAD"
-  | "BODY"
-  | "ARMS"
-  | "LEGS"
-  | "FEET"
-  | "BELT"
-  | "CAPE"
-  | "WEAPON_MAIN"
-  | "WEAPON_OFF"
-  | "ACCESSORY_1"
-  | "ACCESSORY_2";
-
-export interface EquipmentSlots {
-  slots: Partial<Record<EquipmentSlotId, string | null>>; // null = vide
+export interface Skeleton {
+  type: SkeletonType;
+  bones: SkeletonBone[];
+  /** Points d'attache nommés (weapon_right, weapon_left, cape, effect_1…) */
+  attachPoints: Record<string, { boneId: string; offsetX: number; offsetY: number }>;
 }
 
-// ─── Historique mutations ─────────────────────────────────────────────────────
+// ─── Equipment ────────────────────────────────────────────────────────────────
 
-export interface DNAMutation {
-  timestamp: string; // ISO-8601
-  field: string;
-  previousValue: unknown;
-  newValue: unknown;
-  author: "USER" | "SYSTEM" | "AI_SUGGESTION";
-}
+export type EquipmentSlot =
+  | "head"
+  | "body"
+  | "legs"
+  | "feet"
+  | "hands"
+  | "weapon_right"
+  | "weapon_left"
+  | "back"
+  | "belt"
+  | "accessory_1"
+  | "accessory_2";
 
-// ─── CharacterDNA — type central ──────────────────────────────────────────────
+export type EquipmentType =
+  | "helmet"
+  | "armor_body"
+  | "pants"
+  | "boots"
+  | "gloves"
+  | "weapon_sword"
+  | "weapon_axe"
+  | "weapon_spear"
+  | "weapon_bow"
+  | "weapon_staff"
+  | "weapon_gun"
+  | "shield"
+  | "cloak"
+  | "wings_equipment"
+  | "aura";
 
-export interface CharacterDNA {
-  // Identité immuable
-  dnaId: string;      // UUID v4 — JAMAIS modifié après création
-  createdAt: string;  // ISO-8601
-  version: number;    // Incrémenté à chaque mutation
-  modificationHistory: DNAMutation[];
-
-  // Espèces
-  primarySpecies: SpeciesId;
-  secondarySpecies?: SpeciesId;
-  hybridRatio?: number; // 0.0 à 1.0, dominance espèce primaire
-
-  // Morphologie
-  morphology: MorphologyDefinition;
-
-  // Identité visuelle
-  palette: CharacterPalette;
-  style: GraphicStyle;
-  name?: string;
-
-  // Classe RPG
-  characterClass: CharacterClass;
-
-  // Composants graphiques (références, pas les images elles-mêmes)
-  components: ComponentReference[];
-
-  // Équipement actuel
-  equipment: EquipmentSlots;
-
-  // Squelette associé
-  skeletonId?: string;
-
-  // Invariants — NE JAMAIS MODIFIER
-  certified: false;              // TOUJOURS false — jamais certifié automatiquement
-  unique_human_proven: false;    // TOUJOURS false
-}
-
-// ─── Définition d'espèce ──────────────────────────────────────────────────────
-
-export interface SpeciesDefinition {
-  id: SpeciesId;
+export interface EquipmentItem {
+  id: string;
   name: string;
-  defaultMorphology: MorphologyDefinition;
-  /** Espèces avec lesquelles cette espèce peut former un hybride */
-  hybridCompatible: SpeciesId[];
-  /** Zones anatomiques distinctives */
-  distinctiveZones: AnatomyZone[];
+  slot: EquipmentSlot;
+  type: EquipmentType;
+  /** Couche de rendu — ordre d'assemblage */
+  layerOrder: number;
+  /** Restrictions d'espèces (vide = universel) */
+  speciesRestrictions: SpeciesId[];
+  /** Traits anatomiques requis pour être équipé */
+  requiredTraits: AnatomicTrait[];
+  /** Traits anatomiques incompatibles */
+  incompatibleTraits: AnatomicTrait[];
+  /** Offsets de position par espèce */
+  speciesOffsets: Partial<Record<SpeciesId, { dx: number; dy: number }>>;
 }
 
-// ─── Animation ────────────────────────────────────────────────────────────────
+// ─── Character DNA ────────────────────────────────────────────────────────────
 
-export interface AnimationEvent {
-  frame: number;
-  type: "STEP" | "ATTACK_ACTIVE" | "EFFECT_SPAWN" | "SOUND" | string;
-  data?: Record<string, unknown>;
+/**
+ * CharacterDNA — Identité technique persistante du personnage.
+ * Toute modification passe par un nouveau snapshot versionné.
+ * Un changement d'équipement ne peut pas modifier l'ADN de base.
+ */
+export interface CharacterDNA {
+  /** Identifiant unique immuable */
+  id: string;
+  /** Version de ce snapshot (incrémentale) */
+  version: number;
+  /** Horodatage de création */
+  createdAt: string;
+  /** Horodatage de dernière modification */
+  updatedAt: string;
+
+  // — Espèces —
+  primarySpecies: SpeciesId;
+  secondarySpecies: SpeciesId | null;
+  /** Traits anatomiques effectifs après hybridation */
+  effectiveTraits: AnatomicTrait[];
+
+  // — Morphologie —
+  morphology: Morphology;
+
+  // — Palette —
+  palette: CharacterPalette;
+
+  // — Squelette —
+  skeleton: Skeleton;
+
+  // — Équipements actuels —
+  equipment: Partial<Record<EquipmentSlot, EquipmentItem>>;
+
+  // — Classe de héros (overlay de jeu, ne change pas l'ADN) —
+  heroClass: HeroClassDNA;
+
+  // — Style graphique —
+  graphicStyle: GraphicStyle;
+
+  // — Vues générées —
+  views: Partial<Record<CharacterView, GeneratedView>>;
+
+  // — Historique des modifications —
+  history: CharacterDNAHistoryEntry[];
+
+  // — Metadata —
+  meta: CharacterDNAMeta;
 }
 
-export interface AnimationDescriptor {
-  animationId: string;
-  type: AnimationType;
-  frameCount: number;
-  fps: number;
-  durationMs: number;
-  looping: boolean;
-  /** Déplacement du personnage pendant l'animation */
-  characterDisplacement: Vector2D;
-  events: AnimationEvent[];
-  /** Hitboxes actives par numéro de frame */
-  hitboxes: Record<number, Hitbox[]>;
-  /** Transitions autorisées */
-  allowedTransitionsFrom: AnimationType[];
-  allowedTransitionsTo: AnimationType[];
-  compatibleSkeletonFamilies: SkeletonFamily[];
+export type HeroClassDNA =
+  | "SAMURAI" | "CYBERPUNK" | "MAGE" | "ARCHER"
+  | "KNIGHT" | "PIRATE" | "NINJA" | "TANK"
+  | "WARRIOR" | "ASSASSIN" | "PALADIN" | "DRUID"
+  | "SUMMONER" | "ENGINEER" | "PRIEST" | "NECROMANCER"
+  | "BARD" | "BERSERKER" | "CUSTOM";
+
+export type GraphicStyle =
+  | "pixel_art_16"   // 16×16 pixels
+  | "pixel_art_32"   // 32×32 pixels
+  | "pixel_art_64"   // 64×64 pixels
+  | "pixel_art_128"  // 128×128 pixels
+  | "chibi"
+  | "anime"
+  | "cartoon"
+  | "isometric";
+
+export type CharacterView =
+  | "front"
+  | "back"
+  | "left"
+  | "right"
+  | "three_quarters"
+  | "isometric"
+  | "top_down";
+
+export interface GeneratedView {
+  view: CharacterView;
+  /** URL ou data:image/png;base64,... */
+  imageUrl: string;
+  /** Dimensions en pixels */
+  width: number;
+  height: number;
+  /** SHA-256 du contenu de l'image */
+  checksum: string;
+  generatedAt: string;
+  /** Provider utilisé : "deterministic" | "dalle" | "claude_vision" | "local" */
+  provider: string;
 }
 
-// ─── Résultat de validation qualité ──────────────────────────────────────────
+export interface CharacterDNAHistoryEntry {
+  version: number;
+  timestamp: string;
+  changeType: "species" | "morphology" | "palette" | "equipment" | "class" | "style" | "creation";
+  changedFields: string[];
+  previousValues: Record<string, unknown>;
+}
 
-export type QualityCheckStatus = "PASS" | "FAIL" | "WARNING";
+export interface CharacterDNAMeta {
+  /** Provider IA utilisé pour la dernière génération visuelle */
+  lastGenerationProvider: string | null;
+  /** true si toutes les vues sont cohérentes entre elles */
+  viewsConsistent: boolean;
+  /** Score de qualité global [0–100] */
+  qualityScore: number | null;
+  /** true si le personnage peut être exporté */
+  exportReady: boolean;
+  /** Avertissements de compatibilité équipement */
+  compatibilityWarnings: string[];
+}
+
+// ─── Asset Quality ────────────────────────────────────────────────────────────
 
 export interface QualityCheckResult {
-  checkId: string;
-  status: QualityCheckStatus;
-  message: string;
-  details?: Record<string, unknown>;
-}
-
-export interface QualityReport {
   assetId: string;
-  assetType: "CHARACTER" | "ANIMATION" | "EQUIPMENT" | "TERRAIN" | "CREATURE";
+  assetType: "character" | "sprite" | "animation" | "tileset" | "vfx";
   timestamp: string;
-  checks: QualityCheckResult[];
-  exportAllowed: boolean; // false si au moins un FAIL
+  passed: boolean;
+  scores: {
+    visualFidelity: number | null;       // 0–100
+    anatomicalConsistency: number | null;
+    animationQuality: number | null;
+    pixelIntegrity: number | null;
+    equipmentCompatibility: number | null;
+    runtimeReadiness: number | null;
+    licenseCompliance: number | null;
+  };
+  failures: QualityFailure[];
+  warnings: string[];
 }
 
-// ─── Compatibilité équipement ─────────────────────────────────────────────────
-
-export interface AppendiceOpening {
-  appendice: "WING_LEFT" | "WING_RIGHT" | "TAIL" | "HORN_LEFT" | "HORN_RIGHT" | string;
-  required: boolean;
-  defaultShapeAdjustment: "NONE" | "SMALL" | "LARGE" | "CUT";
+export interface QualityFailure {
+  code: string;
+  severity: "blocking" | "warning" | "info";
+  message: string;
+  field?: string;
 }
 
-export interface EquipmentRule {
-  equipmentId: string;
-  slotId: EquipmentSlotId;
-  compatibleSpecies: SpeciesId[];      // [] = universel
-  incompatibleSpecies: SpeciesId[];
-  requiredOpenings: AppendiceOpening[];
-  layerOrder: number;
-  coverageZones: AnatomyZone[];
-  name: string;
-  description?: string;
+// ─── Generation Request ───────────────────────────────────────────────────────
+
+export interface SpriteGenerationRequest {
+  dna: CharacterDNA;
+  view: CharacterView;
+  /** Provider préféré — le router choisit le fallback si indisponible */
+  preferredProvider?: "dalle" | "claude_vision" | "deterministic" | "local";
+  forceRegenerate?: boolean;
+}
+
+export interface SpriteGenerationResult {
+  request: SpriteGenerationRequest;
+  success: boolean;
+  view: GeneratedView | null;
+  error: string | null;
+  providerUsed: string;
+  durationMs: number;
+}
+
+// ─── SPRITES 2D Engine Config ─────────────────────────────────────────────────
+
+export interface Sprites2DConfig {
+  /** Mode debug — logs verbeux */
+  debug: boolean;
+  /** Fournisseurs IA disponibles */
+  providers: {
+    openai?: { apiKey: string; model: string };
+    claude?: { apiKey: string };
+    bob?: { apiKey: string; baseUrl: string };
+    mistral?: { apiKey: string; model?: string };
+    local?: { enabled: boolean };
+  };
+  /** Résolution par défaut */
+  defaultStyle: GraphicStyle;
+  /** Dossier de cache local */
+  cacheDir: string;
+  /** Activer la validation automatique */
+  autoValidate: boolean;
 }

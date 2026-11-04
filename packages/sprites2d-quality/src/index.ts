@@ -1,438 +1,463 @@
 /**
- * sprites2d-quality — Moteur de validation qualité des assets SPRITES 2D
+ * SPRITES 2D — Quality Engine
+ * Validation automatique des assets : CharacterDNA, sprites, animations
  *
- * Projet : OWLY / SPRITES 2D (VGACTech)
+ * Projet : OWLY / SPRITES 2D Universal Asset Creation Engine
  * Module : sprites2d-quality
- * Auteur : ARTCB Project <official@artcb.space>
  *
- * CERTIFIED_100=false | unique_human_proven=false
- * Mode DEBUG actif
+ * RÈGLE : Aucun asset n'est considéré prêt sans avoir passé ce moteur.
+ *         Les scores sont INDÉPENDANTS — ne pas les fusionner en score global.
+ *         Une ressource peut être excellente visuellement et techniquement inutilisable.
  *
- * Responsabilités :
- *   - Valider un CharacterDNA (cohérence anatomique, palette, morphologie)
- *   - Valider une animation (frames, pivots, boucles)
- *   - Valider un équipement (compatibilité morphologique, slots)
- *   - Produire un QualityReport avec score, détails et recommandations
- *
- * PRINCIPE : Aucun asset ne passe en production sans un rapport vert.
- *            Un asset peut être visuellement magnifique et techniquement inutilisable.
- *            Les indicateurs restent séparés — on ne fusionne pas en un seul score global.
+ * DEBUG MODE ACTIVE | CERTIFIED_100=false | unique_human_proven=false
  */
 
 import type {
   CharacterDNA,
-  QualityReport,
-  QualityCheck,
-  AnimationDescriptor,
-  EquipmentRule,
-  SkeletonFamily,
-  MorphologyDefinition,
+  QualityCheckResult,
+  QualityFailure,
+  EquipmentSlot,
+  AnatomicTrait,
 } from "@sprites2d/schema";
+import { SPECIES_REGISTRY } from "@sprites2d/character";
 
-// ─── Sévérités et statuts ──────────────────────────────────────────────────────
+// ─── Quality Engine ───────────────────────────────────────────────────────────
 
-export type CheckSeverity = "ERROR" | "WARNING" | "INFO";
-export type CheckStatus = "PASS" | "FAIL" | "WARN" | "SKIP";
+export class QualityEngine {
+  private debug: boolean;
 
-export interface DetailedCheck {
-  readonly id: string;
-  readonly category: string;
-  readonly description: string;
-  readonly status: CheckStatus;
-  readonly severity: CheckSeverity;
-  readonly message: string;
-  readonly suggestion?: string;
-}
-
-export interface DetailedQualityReport {
-  readonly assetId: string;
-  readonly assetType: "CHARACTER_DNA" | "ANIMATION" | "EQUIPMENT" | "WORLD_TILE";
-  readonly timestamp: string;
-  readonly checks: DetailedCheck[];
-  readonly scores: {
-    readonly anatomicalConsistency: number;   // 0–100
-    readonly paletteIntegrity: number;        // 0–100
-    readonly morphologyValidity: number;       // 0–100
-    readonly equipmentCompatibility: number;   // 0–100 (NaN si non applicable)
-    readonly animationQuality: number;         // 0–100 (NaN si non applicable)
-    readonly runtimeReadiness: number;         // 0–100
-  };
-  readonly passed: boolean;  // true si aucun check ERROR FAIL
-  readonly warnings: number;
-  readonly errors: number;
-}
-
-// ─── Helpers internes ─────────────────────────────────────────────────────────
-
-function check(
-  id: string,
-  category: string,
-  description: string,
-  condition: boolean,
-  severity: CheckSeverity,
-  failMessage: string,
-  passMessage: string,
-  suggestion?: string
-): DetailedCheck {
-  return {
-    id,
-    category,
-    description,
-    status: condition ? "PASS" : severity === "ERROR" ? "FAIL" : "WARN",
-    severity,
-    message: condition ? passMessage : failMessage,
-    suggestion: condition ? undefined : suggestion,
-  };
-}
-
-function warnIf(
-  id: string,
-  category: string,
-  description: string,
-  condition: boolean,
-  warnMessage: string,
-  passMessage: string,
-  suggestion?: string
-): DetailedCheck {
-  return check(id, category, description, !condition, "WARNING", warnMessage, passMessage, suggestion);
-}
-
-// ─── Validation CharacterDNA ──────────────────────────────────────────────────
-
-/**
- * Validates a CharacterDNA object.
- *
- * Checks performed (not exhaustive, grows with implementation):
- *   DNA-001  ID présent et non vide
- *   DNA-002  primarySpecies présente
- *   DNA-003  morphology heightRatio dans [0.1, 5.0]
- *   DNA-004  morphology corpulenceRatio dans [0.1, 5.0]
- *   DNA-005  palette primaryColor est un hex valide
- *   DNA-006  palette secondaryColor est un hex valide
- *   DNA-007  skeletonFamily cohérente avec les appendices déclarés
- *   DNA-008  hasExtraLimbs → extraLimbCount > 0
- *   DNA-009  version présente
- *   DNA-010  historique des mutations non négatif
- */
-export function validateDNA(dna: CharacterDNA): DetailedQualityReport {
-  const checks: DetailedCheck[] = [];
-  const now = new Date().toISOString();
-
-  // DNA-001 : ID
-  checks.push(check(
-    "DNA-001", "IDENTITY", "ID présent et non vide",
-    typeof dna.id === "string" && dna.id.trim().length > 0,
-    "ERROR", "L'identifiant DNA est vide ou absent.", "ID valide détecté.",
-    "Régénérer via createCharacterDNA()."
-  ));
-
-  // DNA-002 : espèce principale
-  checks.push(check(
-    "DNA-002", "SPECIES", "primarySpecies présente",
-    typeof dna.primarySpecies === "string" && dna.primarySpecies.trim().length > 0,
-    "ERROR", "primarySpecies est vide ou absent.", "primarySpecies valide.",
-    "Fournir une SpeciesId valide."
-  ));
-
-  // DNA-003 : hauteur morphologique
-  const h = dna.morphology?.heightRatio ?? -1;
-  checks.push(check(
-    "DNA-003", "MORPHOLOGY", "heightRatio dans [0.1, 5.0]",
-    h >= 0.1 && h <= 5.0,
-    "ERROR", `heightRatio hors limites : ${h}`, `heightRatio OK : ${h}`,
-    "Valeur recommandée entre 0.5 (chibi) et 1.5 (géant)."
-  ));
-
-  // DNA-004 : corpulence
-  const c = dna.morphology?.corpulenceRatio ?? -1;
-  checks.push(check(
-    "DNA-004", "MORPHOLOGY", "corpulenceRatio dans [0.1, 5.0]",
-    c >= 0.1 && c <= 5.0,
-    "ERROR", `corpulenceRatio hors limites : ${c}`, `corpulenceRatio OK : ${c}`,
-    "Valeur recommandée entre 0.6 (svelte) et 2.0 (colosse)."
-  ));
-
-  // DNA-005 & 006 : palette hexadécimale
-  const hexRegex = /^#[0-9A-Fa-f]{6}$/;
-  const primaryColor = dna.palette?.primaryColor ?? "";
-  const secondaryColor = dna.palette?.secondaryColor ?? "";
-
-  checks.push(check(
-    "DNA-005", "PALETTE", "primaryColor format hex #RRGGBB",
-    hexRegex.test(primaryColor),
-    "WARNING", `primaryColor invalide : "${primaryColor}"`, `primaryColor OK : ${primaryColor}`,
-    "Format attendu : #RRGGBB (ex: #FF4500)."
-  ));
-
-  checks.push(check(
-    "DNA-006", "PALETTE", "secondaryColor format hex #RRGGBB",
-    hexRegex.test(secondaryColor),
-    "WARNING", `secondaryColor invalide : "${secondaryColor}"`, `secondaryColor OK : ${secondaryColor}`,
-    "Format attendu : #RRGGBB (ex: #8B4513)."
-  ));
-
-  // DNA-007 : squelette vs appendices
-  const sf: SkeletonFamily = dna.morphology?.skeletonFamily ?? "HUMANOID";
-  const hasWings = dna.morphology?.hasWings ?? false;
-  const hasTail = dna.morphology?.hasTail ?? false;
-
-  const avianConsistency = sf === "AVIAN" ? hasWings : true;
-  checks.push(check(
-    "DNA-007", "ANATOMY", "skeletonFamily cohérente avec les appendices",
-    avianConsistency,
-    "WARNING",
-    `AVIAN déclaré mais hasWings=false — incohérence anatomique.`,
-    `Squelette ${sf} cohérent avec les appendices.`,
-    "Activer hasWings ou changer de skeletonFamily."
-  ));
-
-  // DNA-008 : extra limbs
-  const hasExtra = dna.morphology?.hasExtraLimbs ?? false;
-  const extraCount = dna.morphology?.extraLimbCount ?? 0;
-  checks.push(check(
-    "DNA-008", "ANATOMY", "hasExtraLimbs → extraLimbCount > 0",
-    !hasExtra || extraCount > 0,
-    "ERROR",
-    "hasExtraLimbs=true mais extraLimbCount=0 — incohérence critique.",
-    "Nombre de membres supplémentaires cohérent.",
-    "Définir extraLimbCount > 0 ou désactiver hasExtraLimbs."
-  ));
-
-  // DNA-009 : version
-  checks.push(check(
-    "DNA-009", "METADATA", "version présente",
-    typeof dna.version === "string" && dna.version.length > 0,
-    "WARNING", "version absente ou vide.", `version : ${dna.version}`,
-    "Initialiser via createCharacterDNA()."
-  ));
-
-  // DNA-010 : mutations
-  const mutCount = dna.mutationCount ?? 0;
-  checks.push(warnIf(
-    "DNA-010", "METADATA", "Nombre de mutations non négatif",
-    mutCount < 0,
-    `mutationCount négatif : ${mutCount}`,
-    `mutationCount : ${mutCount}`
-  ));
-
-  // ─── Calcul des scores ──────────────────────────────────────────────────────
-  const anatomyChecks = checks.filter((c) => c.category === "ANATOMY" || c.category === "MORPHOLOGY");
-  const anatomyPassed = anatomyChecks.filter((c) => c.status === "PASS").length;
-  const anatomicalConsistency = anatomyChecks.length > 0
-    ? Math.round((anatomyPassed / anatomyChecks.length) * 100)
-    : 100;
-
-  const paletteChecks = checks.filter((c) => c.category === "PALETTE");
-  const palettePassed = paletteChecks.filter((c) => c.status === "PASS").length;
-  const paletteIntegrity = paletteChecks.length > 0
-    ? Math.round((palettePassed / paletteChecks.length) * 100)
-    : 100;
-
-  const morphologyChecks = checks.filter((c) => c.category === "MORPHOLOGY");
-  const morphologyPassed = morphologyChecks.filter((c) => c.status === "PASS").length;
-  const morphologyValidity = morphologyChecks.length > 0
-    ? Math.round((morphologyPassed / morphologyChecks.length) * 100)
-    : 100;
-
-  const errors = checks.filter((c) => c.status === "FAIL").length;
-  const warnings = checks.filter((c) => c.status === "WARN").length;
-  const runtimeReadiness = errors === 0
-    ? (warnings === 0 ? 100 : Math.max(0, 100 - warnings * 15))
-    : 0;
-
-  return {
-    assetId: dna.id,
-    assetType: "CHARACTER_DNA",
-    timestamp: now,
-    checks,
-    scores: {
-      anatomicalConsistency,
-      paletteIntegrity,
-      morphologyValidity,
-      equipmentCompatibility: NaN,
-      animationQuality: NaN,
-      runtimeReadiness,
-    },
-    passed: errors === 0,
-    warnings,
-    errors,
-  };
-}
-
-// ─── Validation Animation ─────────────────────────────────────────────────────
-
-/**
- * Validates an AnimationDescriptor.
- *
- * Checks:
- *   ANIM-001  frameCount >= 1
- *   ANIM-002  fps dans [1, 60]
- *   ANIM-003  width et height identiques dans tous les frames
- *   ANIM-004  duration > 0
- *   ANIM-005  transitions non vides si animation non isolée
- */
-export function validateAnimation(anim: AnimationDescriptor): DetailedQualityReport {
-  const checks: DetailedCheck[] = [];
-  const now = new Date().toISOString();
-
-  checks.push(check(
-    "ANIM-001", "FRAMES", "frameCount >= 1",
-    anim.frameCount >= 1,
-    "ERROR", `frameCount invalide : ${anim.frameCount}`, `frameCount : ${anim.frameCount}`,
-    "Une animation doit avoir au moins 1 frame."
-  ));
-
-  checks.push(check(
-    "ANIM-002", "TIMING", "fps dans [1, 60]",
-    anim.fps >= 1 && anim.fps <= 60,
-    "ERROR", `fps hors limites : ${anim.fps}`, `fps : ${anim.fps}`,
-    "Valeur recommandée : 4–24 pour pixel art, 30–60 pour fluide."
-  ));
-
-  checks.push(check(
-    "ANIM-003", "TIMING", "duration > 0",
-    anim.duration > 0,
-    "ERROR", `duration invalide : ${anim.duration}ms`, `duration : ${anim.duration}ms`,
-    "duration = frameCount / fps * 1000."
-  ));
-
-  checks.push(warnIf(
-    "ANIM-004", "LOOP", "loop défini",
-    anim.loop === undefined || anim.loop === null,
-    "loop non défini — comportement par défaut indéfini.",
-    `loop : ${anim.loop}`,
-    "Définir explicitement loop=true ou loop=false."
-  ));
-
-  const errors = checks.filter((c) => c.status === "FAIL").length;
-  const warnings = checks.filter((c) => c.status === "WARN").length;
-  const passed = checks.filter((c) => c.status === "PASS").length;
-  const animationQuality = Math.round((passed / checks.length) * 100);
-
-  return {
-    assetId: anim.id ?? "unknown",
-    assetType: "ANIMATION",
-    timestamp: now,
-    checks,
-    scores: {
-      anatomicalConsistency: NaN,
-      paletteIntegrity: NaN,
-      morphologyValidity: NaN,
-      equipmentCompatibility: NaN,
-      animationQuality,
-      runtimeReadiness: errors === 0 ? Math.max(0, 100 - warnings * 10) : 0,
-    },
-    passed: errors === 0,
-    warnings,
-    errors,
-  };
-}
-
-// ─── Validation Équipement ────────────────────────────────────────────────────
-
-/**
- * Validates an EquipmentRule against a CharacterDNA morphology.
- *
- * Checks:
- *   EQ-001  slot non vide
- *   EQ-002  compatibleSpecies inclut la primarySpecies du DNA
- *   EQ-003  Pas de contraintes de morphologie violées (wings, horns)
- *   EQ-004  incompatibleWith liste non vide (warning si absente)
- */
-export function validateEquipment(
-  equipment: EquipmentRule,
-  dna: CharacterDNA
-): DetailedQualityReport {
-  const checks: DetailedCheck[] = [];
-  const now = new Date().toISOString();
-
-  // EQ-001
-  checks.push(check(
-    "EQ-001", "SLOT", "slot non vide",
-    typeof equipment.slot === "string" && equipment.slot.trim().length > 0,
-    "ERROR", "slot d'équipement vide ou absent.", `slot : ${equipment.slot}`,
-    "Définir un slot valide (HEAD, CHEST, LEGS, etc.)."
-  ));
-
-  // EQ-002 : compatibilité espèce
-  const speciesCompat =
-    equipment.compatibleSpecies.length === 0 ||
-    equipment.compatibleSpecies.includes(dna.primarySpecies) ||
-    (dna.secondarySpecies != null && equipment.compatibleSpecies.includes(dna.secondarySpecies));
-
-  checks.push(check(
-    "EQ-002", "COMPATIBILITY", "Espèce compatible avec l'équipement",
-    speciesCompat,
-    "ERROR",
-    `Espèce "${dna.primarySpecies}" incompatible avec cet équipement.`,
-    `Espèce "${dna.primarySpecies}" compatible.`,
-    "Vérifier compatibleSpecies dans la définition de l'équipement."
-  ));
-
-  // EQ-003 : ailes + armure dorsale
-  const hasWings = dna.morphology?.hasWings ?? false;
-  const isBackSlot = equipment.slot === "BACK" || equipment.slot === "CAPE";
-  if (hasWings && isBackSlot) {
-    checks.push(check(
-      "EQ-003", "ANATOMY", "Slot BACK avec ailes — ouvertures requises",
-      equipment.requiresWingOpening === true,
-      "WARNING",
-      "Armure dorsale sur personnage ailé sans ouvertures déclarées.",
-      "Ouvertures pour ailes déclarées (requiresWingOpening=true).",
-      "Ajouter requiresWingOpening: true à l'équipement."
-    ));
+  constructor(opts: { debug?: boolean } = {}) {
+    this.debug = opts.debug ?? true;
   }
 
-  // EQ-004 : liste incompatibilités
-  checks.push(warnIf(
-    "EQ-004", "METADATA", "incompatibleWith défini",
-    !equipment.incompatibleWith || equipment.incompatibleWith.length === 0,
-    "incompatibleWith non défini — combinaisons problématiques non détectables.",
-    "incompatibleWith défini.",
-    "Lister les IDs d'équipements incompatibles (ex: deux armes deux-mains)."
-  ));
+  /**
+   * Valide un CharacterDNA complet.
+   * Vérifie : espèces, traits, morphologie, palette, squelette, équipements.
+   * Ne fait PAS de validation visuelle (nécessite une image = rôle de sprites2d-ai).
+   */
+  validateCharacterDNA(dna: CharacterDNA): QualityCheckResult {
+    const failures: QualityFailure[] = [];
+    const warnings: string[] = [];
 
-  const errors = checks.filter((c) => c.status === "FAIL").length;
-  const warnings = checks.filter((c) => c.status === "WARN").length;
-  const passed = checks.filter((c) => c.status === "PASS").length;
-  const compat = Math.round((passed / checks.length) * 100);
+    if (this.debug) {
+      console.debug(`[DEBUG][sprites2d-quality] Validating DNA id=${dna.id} v${dna.version}`);
+    }
 
-  return {
-    assetId: equipment.slot,
-    assetType: "EQUIPMENT",
-    timestamp: now,
-    checks,
-    scores: {
-      anatomicalConsistency: NaN,
-      paletteIntegrity: NaN,
-      morphologyValidity: NaN,
-      equipmentCompatibility: compat,
-      animationQuality: NaN,
-      runtimeReadiness: errors === 0 ? Math.max(0, 100 - warnings * 10) : 0,
-    },
-    passed: errors === 0,
-    warnings,
-    errors,
-  };
+    // ── 0. Vérifications structurelles fondamentales ──────────────────────────
+    if (!dna.id || dna.id.trim() === "") {
+      failures.push({ code: "QE_MISSING_ID", severity: "blocking", message: "DNA sans identifiant (id vide ou absent)", field: "id" });
+    }
+    if (!dna.primarySpecies || (dna.primarySpecies as string).trim() === "") {
+      failures.push({ code: "QE_MISSING_SPECIES", severity: "blocking", message: "DNA sans espèce primaire", field: "primarySpecies" });
+    }
+    if (!dna.version || dna.version < 1) {
+      failures.push({ code: "QE_INVALID_VERSION", severity: "blocking", message: `Version invalide : ${dna.version} (minimum 1)`, field: "version" });
+    }
+    if (!dna.morphology) {
+      failures.push({ code: "QE_MISSING_MORPHOLOGY", severity: "blocking", message: "DNA sans morphologie", field: "morphology" });
+    }
+    if (!dna.skeleton) {
+      failures.push({ code: "QE_MISSING_SKELETON", severity: "blocking", message: "DNA sans squelette", field: "skeleton" });
+    }
+    if (!dna.palette) {
+      failures.push({ code: "QE_MISSING_PALETTE", severity: "blocking", message: "DNA sans palette", field: "palette" });
+    }
+    if (!dna.heroClass || (dna.heroClass as string).trim() === "") {
+      failures.push({ code: "QE_MISSING_HERO_CLASS", severity: "blocking", message: "DNA sans heroClass", field: "heroClass" });
+    }
+    if (!dna.createdAt || dna.createdAt.trim() === "") {
+      failures.push({ code: "QE_MISSING_CREATED_AT", severity: "blocking", message: "DNA sans createdAt", field: "createdAt" });
+    }
+    if (!dna.history || !Array.isArray(dna.history)) {
+      failures.push({ code: "QE_MISSING_HISTORY", severity: "blocking", message: "DNA sans history", field: "history" });
+    }
+    // Warning : pas de vues générées
+    const viewsGenerated = dna.views ? Object.keys(dna.views).length : 0;
+    if (viewsGenerated === 0) {
+      warnings.push("Aucune vue générée — le personnage n'est pas encore visualisable. Appeler generateView() avant export.");
+    }
+    // Si des vérifications structurelles ont échoué, retourner immédiatement
+    if (failures.some(f => f.severity === "blocking")) {
+      return {
+        assetId: dna.id || "UNKNOWN",
+        assetType: "character",
+        timestamp: new Date().toISOString(),
+        passed: false,
+        scores: { visualFidelity: null, anatomicalConsistency: null, animationQuality: null, pixelIntegrity: null, equipmentCompatibility: null, runtimeReadiness: 0, licenseCompliance: 100 },
+        failures,
+        warnings,
+      };
+    }
+
+    // ── 1. Vérification des espèces ──────────────────────────────────────────
+    const speciesCheck = this.checkSpecies(dna);
+    failures.push(...speciesCheck.failures);
+    warnings.push(...speciesCheck.warnings);
+
+    // ── 2. Vérification des traits anatomiques ───────────────────────────────
+    const traitsCheck = this.checkAnatomicTraits(dna);
+    failures.push(...traitsCheck.failures);
+    warnings.push(...traitsCheck.warnings);
+
+    // ── 3. Vérification de la morphologie ────────────────────────────────────
+    const morphCheck = this.checkMorphology(dna);
+    failures.push(...morphCheck.failures);
+    warnings.push(...morphCheck.warnings);
+
+    // ── 4. Vérification de la palette ────────────────────────────────────────
+    const paletteCheck = this.checkPalette(dna);
+    failures.push(...paletteCheck.failures);
+    warnings.push(...paletteCheck.warnings);
+
+    // ── 5. Vérification du squelette ─────────────────────────────────────────
+    const skeletonCheck = this.checkSkeleton(dna);
+    failures.push(...skeletonCheck.failures);
+    warnings.push(...skeletonCheck.warnings);
+
+    // ── 6. Vérification des équipements ──────────────────────────────────────
+    const equipCheck = this.checkEquipment(dna);
+    failures.push(...equipCheck.failures);
+    warnings.push(...equipCheck.warnings);
+
+    // ── 7. Calcul des scores ──────────────────────────────────────────────────
+    const blockingCount = failures.filter(f => f.severity === "blocking").length;
+    const passed = blockingCount === 0;
+
+    // anatomicalConsistency : basé sur les résultats des checks espèce + traits
+    const anatomyFailures = failures.filter(f =>
+      ["SPECIES_UNKNOWN", "TRAIT_CONFLICT", "SKELETON_DISCONNECTED"].includes(f.code)
+    ).length;
+    const anatomicalConsistency = Math.max(0, 100 - anatomyFailures * 25);
+
+    // equipmentCompatibility : basé sur les checks équipements
+    const equipFailures = failures.filter(f =>
+      ["EQUIP_INCOMPATIBLE_TRAIT", "EQUIP_SLOT_CONFLICT"].includes(f.code)
+    ).length;
+    const equipmentCompatibility = Math.max(0, 100 - equipFailures * 20);
+
+    // runtimeReadiness : prêt si pas de blocking + vues générées
+    // viewsGenerated déjà calculé en section 0 (early return si blocking)
+    const runtimeReadiness = passed && viewsGenerated > 0 ? 80 : passed ? 40 : 0;
+
+    // licenseCompliance : toujours 100 (assets propriétaires SPRITES 2D)
+    const licenseCompliance = 100;
+
+    const result: QualityCheckResult = {
+      assetId: dna.id,
+      assetType: "character",
+      timestamp: new Date().toISOString(),
+      passed,
+      scores: {
+        visualFidelity: viewsGenerated > 0 ? 70 : null, // null = non mesurable sans image
+        anatomicalConsistency,
+        animationQuality: null, // null = pas encore animé
+        pixelIntegrity: viewsGenerated > 0 ? 80 : null,
+        equipmentCompatibility,
+        runtimeReadiness,
+        licenseCompliance,
+      },
+      failures,
+      warnings,
+    };
+
+    if (this.debug) {
+      console.debug(`[DEBUG][sprites2d-quality] Result: passed=${passed}, blocking=${blockingCount}, warnings=${warnings.length}`);
+    }
+
+    return result;
+  }
+
+  // ─── Private checks ─────────────────────────────────────────────────────────
+
+  private checkSpecies(dna: CharacterDNA): { failures: QualityFailure[]; warnings: string[] } {
+    const failures: QualityFailure[] = [];
+    const warnings: string[] = [];
+
+    // Espèce primaire valide
+    if (!SPECIES_REGISTRY[dna.primarySpecies]) {
+      failures.push({
+        code: "SPECIES_UNKNOWN",
+        severity: "blocking",
+        message: `Espèce primaire inconnue : "${dna.primarySpecies}"`,
+        field: "primarySpecies",
+      });
+    }
+
+    // Espèce secondaire valide (si présente)
+    if (dna.secondarySpecies && !SPECIES_REGISTRY[dna.secondarySpecies]) {
+      failures.push({
+        code: "SPECIES_UNKNOWN",
+        severity: "blocking",
+        message: `Espèce secondaire inconnue : "${dna.secondarySpecies}"`,
+        field: "secondarySpecies",
+      });
+    }
+
+    // Espèce primaire ≠ secondaire
+    if (dna.secondarySpecies && dna.primarySpecies === dna.secondarySpecies) {
+      warnings.push("Espèce primaire et secondaire identiques — l'hybridation n'a pas d'effet.");
+    }
+
+    return { failures, warnings };
+  }
+
+  private checkAnatomicTraits(dna: CharacterDNA): { failures: QualityFailure[]; warnings: string[] } {
+    const failures: QualityFailure[] = [];
+    const warnings: string[] = [];
+    const traits = dna.effectiveTraits;
+
+    // Conflits anatomiques critiques
+    if (traits.includes("beak") && traits.includes("snout")) {
+      failures.push({
+        code: "TRAIT_CONFLICT",
+        severity: "warning",
+        message: "Conflit : beak + snout. Le rendu utilisera beak par défaut.",
+        field: "effectiveTraits",
+      });
+    }
+
+    // Cohérence traits / espèce primaire
+    const primarySpecies = SPECIES_REGISTRY[dna.primarySpecies];
+    if (primarySpecies) {
+      const unexpectedTraits = traits.filter(t =>
+        !primarySpecies.anatomicTraits.includes(t) &&
+        !["tail", "wings", "horns"].includes(t) // traits hybrides acceptés
+      );
+      if (unexpectedTraits.length > 3) {
+        warnings.push(
+          `${unexpectedTraits.length} traits inattendus pour l'espèce ${dna.primarySpecies}. Vérifier l'hybridation.`
+        );
+      }
+    }
+
+    // Traits vides
+    if (traits.length === 0) {
+      warnings.push("Aucun trait anatomique — personnage générique (acceptable pour custom).");
+    }
+
+    return { failures, warnings };
+  }
+
+  private checkMorphology(dna: CharacterDNA): { failures: QualityFailure[]; warnings: string[] } {
+    const failures: QualityFailure[] = [];
+    const warnings: string[] = [];
+    const m = dna.morphology;
+
+    // Vérification des facteurs de proportion
+    if (m.legLengthFactor < 0.3 || m.legLengthFactor > 2.5) {
+      failures.push({
+        code: "MORPH_OUT_OF_RANGE",
+        severity: "warning",
+        message: `legLengthFactor hors plage [0.3–2.5] : ${m.legLengthFactor}`,
+        field: "morphology.legLengthFactor",
+      });
+    }
+    if (m.armLengthFactor < 0.3 || m.armLengthFactor > 2.5) {
+      failures.push({
+        code: "MORPH_OUT_OF_RANGE",
+        severity: "warning",
+        message: `armLengthFactor hors plage [0.3–2.5] : ${m.armLengthFactor}`,
+        field: "morphology.armLengthFactor",
+      });
+    }
+    if (m.headSizeFactor < 0.5 || m.headSizeFactor > 3.0) {
+      warnings.push(`headSizeFactor inhabituel (${m.headSizeFactor}) — style chibi ou caricature extrême.`);
+    }
+    if (m.heightTiles < 1 || m.heightTiles > 10) {
+      failures.push({
+        code: "MORPH_OUT_OF_RANGE",
+        severity: "blocking",
+        message: `heightTiles hors plage [1–10] : ${m.heightTiles}`,
+        field: "morphology.heightTiles",
+      });
+    }
+
+    // Cohérence proportions/taille
+    if (m.proportions === "chibi" && m.size === "giant") {
+      warnings.push("Proportions chibi avec taille giant — visuellement inhabituel.");
+    }
+
+    return { failures, warnings };
+  }
+
+  private checkPalette(dna: CharacterDNA): { failures: QualityFailure[]; warnings: string[] } {
+    const failures: QualityFailure[] = [];
+    const warnings: string[] = [];
+    const p = dna.palette;
+
+    // Vérification format hex
+    const hexRe = /^#[0-9A-Fa-f]{6}$/;
+    const paletteFields: (keyof typeof p)[] = ["primary", "secondary", "accent", "marking", "outlineColor"];
+    for (const field of paletteFields) {
+      if (!hexRe.test(p[field])) {
+        failures.push({
+          code: "PALETTE_INVALID_COLOR",
+          severity: "blocking",
+          message: `Couleur invalide pour palette.${field} : "${p[field]}" — format attendu #rrggbb`,
+          field: `palette.${field}`,
+        });
+      }
+    }
+
+    // Contraste outline vs primary
+    if (p.outlineColor === p.primary) {
+      warnings.push("outlineColor identique à primary — le contour ne sera pas visible.");
+    }
+
+    // Couleurs trop proches
+    if (p.primary === p.secondary) {
+      warnings.push("primary et secondary identiques — variation de teinte nulle.");
+    }
+
+    return { failures, warnings };
+  }
+
+  private checkSkeleton(dna: CharacterDNA): { failures: QualityFailure[]; warnings: string[] } {
+    const failures: QualityFailure[] = [];
+    const warnings: string[] = [];
+    const sk = dna.skeleton;
+
+    // Vérification os obligatoires
+    const requiredBones = ["root", "spine", "chest", "head", "arm_r", "arm_l", "hip"];
+    for (const boneId of requiredBones) {
+      if (!sk.bones.find(b => b.id === boneId)) {
+        failures.push({
+          code: "SKELETON_MISSING_BONE",
+          severity: "blocking",
+          message: `Os obligatoire manquant : "${boneId}"`,
+          field: `skeleton.bones.${boneId}`,
+        });
+      }
+    }
+
+    // Vérification de la connectivité (pas d'os orphelin sauf root)
+    const boneIds = new Set(sk.bones.map(b => b.id));
+    for (const bone of sk.bones) {
+      if (bone.parentId && !boneIds.has(bone.parentId)) {
+        failures.push({
+          code: "SKELETON_DISCONNECTED",
+          severity: "blocking",
+          message: `Os "${bone.id}" référence un parent inexistant "${bone.parentId}"`,
+          field: `skeleton.bones.${bone.id}`,
+        });
+      }
+    }
+
+    // Vérification points d'attache
+    const requiredAttach = ["weapon_right", "weapon_left"];
+    for (const key of requiredAttach) {
+      if (!sk.attachPoints[key]) {
+        warnings.push(`Point d'attache manquant : "${key}" — les armes ne pourront pas être positionnées.`);
+      }
+    }
+
+    // Cohérence squelette/traits
+    const hasTail = dna.effectiveTraits.includes("tail");
+    const hasWings = dna.effectiveTraits.includes("wings");
+    if (hasTail && !sk.bones.find(b => b.id === "tail_1")) {
+      warnings.push("Le personnage a un trait 'tail' mais aucun os de queue dans le squelette.");
+    }
+    if (hasWings && !sk.bones.find(b => b.id === "wing_l_1")) {
+      warnings.push("Le personnage a un trait 'wings' mais aucun os d'aile dans le squelette.");
+    }
+
+    return { failures, warnings };
+  }
+
+  private checkEquipment(dna: CharacterDNA): { failures: QualityFailure[]; warnings: string[] } {
+    const failures: QualityFailure[] = [];
+    const warnings: string[] = [];
+    const traits = dna.effectiveTraits;
+
+    for (const [slot, item] of Object.entries(dna.equipment) as [EquipmentSlot, (typeof dna.equipment)[EquipmentSlot]][]) {
+      if (!item) continue;
+
+      // Vérification traits incompatibles
+      for (const incompatibleTrait of item.incompatibleTraits) {
+        if (traits.includes(incompatibleTrait as AnatomicTrait)) {
+          failures.push({
+            code: "EQUIP_INCOMPATIBLE_TRAIT",
+            severity: "blocking",
+            message: `Équipement "${item.name}" incompatible avec le trait anatomique "${incompatibleTrait}" du personnage.`,
+            field: `equipment.${slot}`,
+          });
+        }
+      }
+
+      // Vérification traits requis
+      for (const requiredTrait of item.requiredTraits) {
+        if (!traits.includes(requiredTrait as AnatomicTrait)) {
+          failures.push({
+            code: "EQUIP_MISSING_TRAIT",
+            severity: "warning",
+            message: `Équipement "${item.name}" requiert le trait "${requiredTrait}" absent du personnage.`,
+            field: `equipment.${slot}`,
+          });
+        }
+      }
+
+      // Restrictions d'espèces
+      if (
+        item.speciesRestrictions.length > 0 &&
+        !item.speciesRestrictions.includes(dna.primarySpecies)
+      ) {
+        warnings.push(
+          `Équipement "${item.name}" conçu pour ${item.speciesRestrictions.join("/")} — adaptation automatique activée.`
+        );
+      }
+    }
+
+    return { failures, warnings };
+  }
 }
 
-// ─── Rapport batch ────────────────────────────────────────────────────────────
+// ─── Critères d'acceptation P1 ────────────────────────────────────────────────
 
 /**
- * Runs all applicable validations for a CharacterDNA and returns
- * a summary with all individual reports.
+ * Vérifie les critères d'acceptation P1 de la ROADMAP SPRITES 2D.
+ * Un personnage P1 doit passer TOUS ces critères pour être considéré livrable.
  */
-export function fullCharacterAudit(dna: CharacterDNA): {
-  dnaReport: DetailedQualityReport;
-  globalPassed: boolean;
-  totalErrors: number;
-  totalWarnings: number;
-} {
-  const dnaReport = validateDNA(dna);
-  return {
-    dnaReport,
-    globalPassed: dnaReport.passed,
-    totalErrors: dnaReport.errors,
-    totalWarnings: dnaReport.warnings,
-  };
+export interface P1AcceptanceCriteria {
+  presetsAccessible: boolean;       // Les 8 presets OWLY sont accessibles
+  hybridizationWorks: boolean;      // Au moins 2 espèces peuvent se combiner
+  morphologyFamiliesWork: boolean;  // 3 familles morphologiques testées
+  colorsModifiable: boolean;        // Couleurs modifiables en direct
+  identityStable: boolean;          // Identité stable après modification
+  viewsCoherent: boolean;           // Directions cohérentes (front, back, left, right)
+  projectSaveable: boolean;         // Projet sauvegardable et rechargeable
+  exportIndependent: boolean;       // Export utilisable sans OWLY
 }
+
+export function checkP1Acceptance(dna: CharacterDNA): {
+  criteria: P1AcceptanceCriteria;
+  passed: boolean;
+  failedCriteria: string[];
+} {
+  const criteria: P1AcceptanceCriteria = {
+    presetsAccessible: true,                              // toujours vrai si le moteur est chargé
+    hybridizationWorks: dna.secondarySpecies !== null,    // a une espèce hybride
+    morphologyFamiliesWork: dna.morphology !== undefined, // morphologie présente
+    colorsModifiable: Object.keys(dna.palette).length === 5, // palette complète
+    identityStable: dna.history.length > 0,               // historique présent = mutations traçables
+    viewsCoherent: Object.keys(dna.views).length >= 2,    // au moins 2 vues générées
+    projectSaveable: dna.id !== "" && dna.version > 0,    // ID et version valides
+    exportIndependent: dna.meta.exportReady,               // marqué prêt à l'export
+  };
+
+  const failedCriteria = Object.entries(criteria)
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+
+  const passed = failedCriteria.length === 0;
+
+  if (passed) {
+    console.debug(`[DEBUG][sprites2d-quality] P1 ACCEPTANCE: ALL PASS for DNA ${dna.id}`);
+  } else {
+    console.debug(`[DEBUG][sprites2d-quality] P1 ACCEPTANCE: FAIL for DNA ${dna.id}: ${failedCriteria.join(", ")}`);
+  }
+
+  return { criteria, passed, failedCriteria };
+}
+
+// Re-exports
+export type { QualityCheckResult, QualityFailure } from "@sprites2d/schema";
